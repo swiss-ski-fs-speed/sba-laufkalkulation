@@ -525,8 +525,7 @@ async function initFirebase() {
       if (dirty || pushing) { updateStatus(); return; }   // eigene Änderung ist unterwegs
       state = normalizeState(data);
       if (!currentEvent()) {
-        const sorted = state.events.slice().sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
-        ui.currentEventId = sorted.length ? sorted[sorted.length - 1].id : null;
+        ui.currentEventId = defaultEventId();
         ui.runId = "q1";
       }
       const ae = document.activeElement;
@@ -725,6 +724,22 @@ function newEvent(ort, disziplin, datum) {
   return { id: uid("ev"), ort, disziplin, datum, runs: [emptyRun("q1", "Q1"), emptyRun("q2", "Q2")] };
 }
 function currentEvent() { return state.events.find(e => e.id === ui.currentEventId) || null; }
+/* Standard-Auswahl (Ergänzung Michael/Claude): heutiges Event (inkl. 2. Renntag),
+   sonst das zuletzt gefahrene, sonst das nächste kommende — statt stur des
+   letzten der Saison. Wichtig, sobald die ganze Saison vorerfasst ist. */
+function defaultEventId() {
+  const sorted = state.events.slice().filter(e => e && e.id).sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
+  if (!sorted.length) return null;
+  const today = new Date().toLocaleDateString("sv-SE");
+  const current = sorted.find(e => {
+    if (!e.datum) return false;
+    const end = new Date(new Date(e.datum + "T12:00:00").getTime() + 86400000).toISOString().slice(0, 10);
+    return e.datum <= today && today <= end;
+  });
+  if (current) return current.id;
+  const past = sorted.filter(e => (e.datum || "") <= today);
+  return past.length ? past[past.length - 1].id : sorted[0].id;
+}
 function currentRun() {
   const ev = currentEvent(); if (!ev) return null;
   return ev.runs.find(r => r.id === ui.runId) || ev.runs[0] || null;
@@ -774,8 +789,7 @@ function logout() {
 
 /* ---------- App-Einstieg ---------- */
 function enterApp() {
-  const sorted = state.events.slice().sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
-  if (!currentEvent()) ui.currentEventId = sorted.length ? sorted[sorted.length - 1].id : null;
+  if (!currentEvent()) ui.currentEventId = defaultEventId();
   ui.runId = "q1";
   $("#brandSub").textContent = ui.role === "cc" ? "Command Center" : "Coaches · Live";
   $("#evSelWrap").hidden = ui.role !== "cc";
@@ -1267,8 +1281,7 @@ function confirmDeleteEvent() {
     el("button", {
       class: "btn danger", onclick: () => {
         state.events = state.events.filter(e => e.id !== ev.id);
-        const sorted = state.events.slice().sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
-        ui.currentEventId = sorted.length ? sorted[sorted.length - 1].id : null;
+        ui.currentEventId = defaultEventId();
         ui.runId = "q1"; persist(); closeOverlays(); render();
       },
     }, "Löschen")));
