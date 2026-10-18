@@ -53,6 +53,8 @@ const KALENDER = [
   { ort: "Bad Gastein",       disziplin: "PSL", start: "2027-01-26", end: "2027-01-27" },
   { ort: "Ratschings",        disziplin: "PSL", start: "2027-01-30", end: "2027-01-30" },
   { ort: "Krynica",           disziplin: "PGS", start: "2027-02-27", end: "2027-02-28" },
+  { ort: "WM Montafon (PGS)",  disziplin: "PGS", start: "2027-03-07", end: "2027-03-07" },
+  { ort: "WM Montafon (PSL)",  disziplin: "PSL", start: "2027-03-09", end: "2027-03-10" },
   { ort: "Winterberg",        disziplin: "PSL", start: "2027-03-20", end: "2027-03-21" },
 ];
 
