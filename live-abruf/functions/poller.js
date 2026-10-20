@@ -40,8 +40,16 @@ const FB = {
   password: process.env.CC_PASSWORD || "",
 };
 
+// Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
+const VERSION = "2026-10-20 feed-v1";
+
 // FIS-Weltcup-Kalender Snowboard Alpin 2026/27 (Parallel-Disziplinen)
+// Einträge mit test:true sind Generalproben: laufen ohne FORCE/LIVE_URL,
+// schreiben NIE in die App (immer Trockenlauf) und führen ein Journal, das
+// über /.netlify/functions/testlog lesbar ist (Ergänzung Michael/Claude).
 const KALENDER = [
+  { ort: "Generalprobe Sölden (Ski Alpin)", disziplin: "TEST", start: "2026-10-24", end: "2026-10-25", test: true,
+    liveUrls: ["https://live.fis-ski.com/lv-al5001.htm", "https://live.fis-ski.com/lv-al0001.htm"] },
   { ort: "Snow Ruyi (TBC)",   disziplin: "PGS", start: "2026-11-28", end: "2026-11-29" },
   { ort: "Mylin",             disziplin: "PGS", start: "2026-12-05", end: "2026-12-06" },
   { ort: "Cortina d'Ampezzo", disziplin: "PGS", start: "2026-12-12", end: "2026-12-12" },
@@ -58,7 +66,10 @@ const KALENDER = [
   { ort: "Winterberg",        disziplin: "PSL", start: "2027-03-20", end: "2027-03-21" },
 ];
 
-const LIVE_INDEX = "https://www.fis-ski.com/DB/snowboard/live.html";
+// Live-Übersicht: Standard Snowboard. Für die Generalprobe (Ski Alpin) per
+// Umgebungsvariable LIVE_INDEX umstellbar (Ergänzung Michael/Claude).
+const LIVE_INDEX = process.env.LIVE_INDEX || "https://www.fis-ski.com/DB/snowboard/live.html";
+const LIVE_HOST = "https://live.fis-ski.com";
 const UA = { "User-Agent": "Mozilla/5.0 (sba-laufkalkulation live-abruf; read-only)" };
 
 // ---------------------------------------------------------------------------
@@ -87,14 +98,140 @@ const norm = {
 // ---------------------------------------------------------------------------
 // Schritt 2: Live-Quelle finden
 // ---------------------------------------------------------------------------
-async function findeLiveUrl() {
-  if (process.env.LIVE_URL) return process.env.LIVE_URL;
+// LIVE_URL darf eine kommagetrennte Liste sein (z.B. Damen- und Herren-Rennen);
+// geloggt werden alle, verwendet wird die erste Quelle mit Zielzeiten.
+async function findeLiveUrls() {
+  if (process.env.LIVE_URL) return process.env.LIVE_URL.split(",").map(x => x.trim()).filter(Boolean);
   const res = await fetch(LIVE_INDEX, { headers: UA });
   if (!res.ok) throw new Error("Live-Übersicht: HTTP " + res.status);
   const html = await res.text();
   const links = [...new Set(html.match(/https?:\/\/live\.fis-ski\.com\/[^\s"'<>]+/g) || [])];
   console.log("Gefundene Live-Links:", links);
-  return links[0] || null;
+  // Nur Renn-Seiten (lv-<codex>.htm), nicht die Startseite
+  return links.filter(l => /\/lv-[a-z]{2}\d+\.htm/i.test(l));
+}
+
+// ---------------------------------------------------------------------------
+// FIS-Live-Datenfeed (Ergänzung Michael/Claude, 20.10.2026)
+// ---------------------------------------------------------------------------
+// Die Seite live.fis-ski.com/lv-<codex>.htm ist nur eine leere Hülle. Ihre
+// Daten lädt sie per JavaScript von einem Datenserver:
+//   <server>/<codex>/main.xml      (z.B. https://sys7.novius.net/al5409/main.xml)
+// Serverliste: live.fis-ski.com/general/serverListFull.xml. Format: ein
+// PHP-serialisiertes Array, eingepackt in <lt>…</lt>. Aufbau (verifiziert am
+// 20.10.2026 mit al5409, Riesenslalom Cerro Catedral vom 13.9.2026):
+//   racers[]                       = [racerId, NAME, Vorname, Nation, ...]
+//   startlist[0][0][lauf][pos]     = [racerId, Startnr., Status, Zusatz]
+//   result[0][lauf][pos][messpunkt]= Zeit in ms; "123450:c" = kumuliert
+//   racedef[0][lauf][messpunkt]    = [Typ ("finish", "inter" ...), Nr.]
+// Offen bis zum ersten Snowboard-Rennen: wo die Kurszuteilung (Blau/Rot)
+// steht. Vermutung: Zusatzfeld der Startliste oder racedef -> wird geloggt.
+function codexAusUrl(url) {
+  const m = String(url).match(/lv-([a-z]{2}\d{3,5})\.htm/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function phpUnserialize(text) {
+  const buf = Buffer.from(text, "utf8");
+  let i = 0;
+  const bis = ch => {
+    const j = buf.indexOf(ch, i);
+    if (j < 0) throw new Error("PHP-Format: '" + ch + "' fehlt ab Position " + i);
+    const v = buf.toString("utf8", i, j); i = j + 1; return v;
+  };
+  function lies() {
+    const t = String.fromCharCode(buf[i]); i += 2;
+    if (t === "N") return null;
+    if (t === "b") return bis(";") === "1";
+    if (t === "i" || t === "d") return Number(bis(";"));
+    if (t === "s") {
+      const n = Number(bis(":")); i += 1;           // Länge in Bytes, dann '"'
+      const v = buf.toString("utf8", i, i + n); i += n + 2; return v;
+    }
+    if (t === "a") {
+      const n = Number(bis(":")); i += 1;           // '{'
+      const o = {};
+      for (let k = 0; k < n; k++) { const key = lies(); o[key] = lies(); }
+      i += 1;                                       // '}'
+      return o;
+    }
+    throw new Error("PHP-Format: unbekannter Typ '" + t + "' an Position " + (i - 2));
+  }
+  return lies();
+}
+
+async function ladeFeed(liveUrl) {
+  const codex = codexAusUrl(liveUrl);
+  if (!codex) return { liveUrl, codex: null, data: null };
+  const hosts = [];
+  try {
+    const t = await (await fetch(LIVE_HOST + "/general/serverListFull.xml?t=" + Date.now(), { headers: UA })).text();
+    for (const m of t.matchAll(/s:\d+:"(https?:\/\/[^"]+)"/g)) hosts.push(m[1].replace(/\/$/, ""));
+  } catch (e) { console.log("Serverliste nicht lesbar:", e.message); }
+  hosts.push(LIVE_HOST);
+  for (const h of hosts) {
+    const url = `${h}/${codex}/main.xml?t=${Date.now()}`;
+    const res = await fetch(url, { headers: UA }).catch(() => null);
+    if (!res || !res.ok) continue;
+    const text = (await res.text()).trim();
+    if (!text.startsWith("<lt>")) continue;
+    return { liveUrl, codex, url, text, data: phpUnserialize(text.replace(/^<lt>/, "").replace(/<\/lt>$/, "")) };
+  }
+  return { liveUrl, codex, data: null };
+}
+
+/** Feed -> Einträge { name, zeit, gender, run, kurs, bib }. kurs kann null sein. */
+function decodeFeed(d) {
+  const racers = new Map();
+  for (const r of Object.values(d.racers || {})) if (r) racers.set(r[0], r);
+  const info = d.raceinfodetail || {};
+  const gender = norm.gender(info.gender) || norm.gender((d.raceinfo || {})[4]);
+  const startlist = ((d.startlist || {})[0] || {})[0] || {};
+  const result = (d.result || {})[0] || {};
+  const racedef = (d.racedef || {})[0] || {};
+  const lauf1 = new Map();   // racerId -> ms (für kumulierte Zeiten im 2. Lauf)
+  const out = [];
+  for (const lauf of Object.keys(startlist).map(Number).sort((a, b) => a - b)) {
+    const run = ["q1", "q2"][lauf];
+    if (!run) continue;
+    const defs = Object.values(racedef[lauf] || {});
+    let ziel = defs.findIndex(x => x && x[0] === "finish");
+    if (ziel < 0) ziel = defs.length - 1;
+    for (const [pos, s] of Object.entries(startlist[lauf] || {})) {
+      if (!s) continue;
+      const messung = ((result[lauf] || {})[pos] || {})[ziel];
+      if (messung == null) continue;                 // noch nicht im Ziel
+      if (/^(dq|dnf|dns|dsq)$/i.test(String(s[2]))) continue;
+      const [msRoh, flag] = String(messung).split(":");
+      let ms = Number(msRoh);
+      if (!isFinite(ms)) continue;
+      if (flag === "c") {                            // kumuliert -> Laufzeit
+        if (!lauf1.has(s[0])) continue;
+        ms -= lauf1.get(s[0]);
+      }
+      if (lauf === 0) lauf1.set(s[0], ms);
+      const r = racers.get(s[0]);
+      const zeit = norm.zeit(ms / 1000);
+      if (!r || !zeit) continue;
+      out.push({ name: String(r[1]).trim().toUpperCase(), zeit, gender, run, kurs: norm.kurs(s[3]), bib: s[1] });
+    }
+  }
+  return out;
+}
+
+/** Kompakter Diagnose-Log des Feeds (für die Schärfung am ersten Rennen). */
+function logFeed(feed) {
+  const d = feed.data;
+  const j = (v, n) => JSON.stringify(v === undefined ? null : v).slice(0, n || 400);
+  console.log(`Feed ${feed.codex} (${feed.url}):`, j(d.raceinfodetail || d.raceinfo, 300));
+  console.log("  Felder:", Object.keys(d).join(", "));
+  console.log("  racedef:", j(d.racedef), "| runinfo:", j(d.runinfo, 300));
+  const sl = ((d.startlist || {})[0] || {})[0] || {};
+  for (const lauf of Object.keys(sl)) {
+    const reihe = Object.values(sl[lauf] || {});
+    console.log(`  Startliste Lauf ${Number(lauf) + 1}: ${reihe.length} Einträge, Beispiele:`, j(reihe.slice(0, 4)));
+    console.log(`  Resultat Lauf ${Number(lauf) + 1}, Beispiele:`, j(Object.values(((d.result || {})[0] || {})[lauf] || {}).slice(0, 4)));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -197,30 +334,129 @@ function upsert(state, evMeta, entries) {
 }
 
 // ---------------------------------------------------------------------------
+// Testlauf-Journal (Netlify Blobs, Store "testlauf") – nur bei test:true
+// ---------------------------------------------------------------------------
+async function oeffneJournal(event) {
+  try {
+    const blobs = require("@netlify/blobs");
+    if (event && event.blobs) blobs.connectLambda(event);
+    const store = blobs.getStore("testlauf");
+    const status = (await store.get("status", { type: "json" })) || { version: VERSION, laeufe: {}, log: [] };
+    return {
+      status,
+      log(msg) {
+        status.log.push({ t: new Date().toISOString(), msg: String(msg).slice(0, 500) });
+        if (status.log.length > 300) status.log = status.log.slice(-300);
+      },
+      async speichern(feeds) {
+        status.version = VERSION;
+        status.aktualisiert = new Date().toISOString();
+        for (const f of feeds) {
+          await store.set("feed-" + f.codex + "-letzter", f.text);
+          const l = status.laeufe[f.codex];
+          if (l && l.neuesMaximum) { await store.set("feed-" + f.codex + "-max", f.text); delete l.neuesMaximum; }
+        }
+        await store.setJSON("status", status);
+      },
+    };
+  } catch (e) {
+    console.log("Journal nicht verfügbar:", e.message);
+    return null;
+  }
+}
+
+function journalFeed(j, feed, e) {
+  if (!j) return;
+  const d = feed.data || {};
+  const l = j.status.laeufe[feed.codex] || (j.status.laeufe[feed.codex] = {
+    erstmals: new Date().toISOString(), aufrufe: 0, maxZeiten: 0 });
+  l.aufrufe++;
+  l.zuletzt = new Date().toISOString();
+  l.quelle = feed.url;
+  if (!feed.data) { l.letzterStand = "keine Daten"; return; }
+  l.rennen = d.raceinfodetail || d.raceinfo;
+  l.felder = Object.keys(d);
+  l.racedef = d.racedef;
+  const sl = ((d.startlist || {})[0] || {})[0] || {};
+  l.startlisten = Object.fromEntries(Object.entries(sl).map(([k, v]) => [Number(k) + 1, Object.values(v || {}).length]));
+  l.beispielStartliste = Object.values(sl[0] || {}).slice(0, 3);
+  l.zeitenProLauf = { q1: e.filter(x => x.run === "q1").length, q2: e.filter(x => x.run === "q2").length };
+  l.mitKurs = e.filter(x => x.kurs).length;
+  l.letzterStand = `${e.length} Zielzeiten`;
+  if (e.length > l.maxZeiten) { l.maxZeiten = e.length; l.maxZeitpunkt = l.zuletzt; l.neuesMaximum = true; l.beispiele = e.slice(0, 8); }
+}
+
+// ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
-exports.handler = async () => {
-  const ok = (msg) => { console.log(msg); return { statusCode: 200, body: msg }; };
+exports.VERSION = VERSION;
+exports.handler = async (event) => {
+  let journal = null;
+  const feeds = [];
+  const ok = async (msg, code) => {
+    console.log(msg);
+    if (journal) { journal.log(msg); try { await journal.speichern(feeds); } catch (e) { console.log("Journal speichern:", e.message); } }
+    return { statusCode: code || 200, body: msg };
+  };
   try {
     const evMeta = aktuellesEvent();
-    if (!evMeta && process.env.FORCE !== "1") return ok("Kein Renntag – nichts zu tun.");
-    const meta = evMeta || { ort: "TEST", disziplin: "PGS", start: heute(), end: heute() };
-    console.log("Renntag:", meta.ort, meta.disziplin);
-
-    const liveUrl = await findeLiveUrl();
-    if (!liveUrl) return ok("Keine Live-Quelle gefunden (noch kein Rennen live?).");
-    console.log("Live-Quelle:", liveUrl);
-
-    const res = await fetch(liveUrl, { headers: UA });
-    if (!res.ok) return ok("Live-Quelle HTTP " + res.status);
-    const text = await res.text();
-    const entries = parseLive(text, res.headers.get("content-type"));
-    if (!entries) {
-      console.log("Parser hat die Struktur (noch) nicht erkannt. Antwort-Ausschnitt für die Diagnose:");
-      console.log(text.slice(0, 2000));
-      return ok("Noch nicht parsebar – Ausschnitt geloggt (DRY_RUN-Phase).");
+    if (!evMeta && process.env.FORCE !== "1") {
+      // Bis zur letzten Generalprobe: Herzschlag ins Journal, damit vorab
+      // prüfbar ist, dass Zeitplan und Speicher laufen (testlog zeigt ihn).
+      const letzteProbe = KALENDER.filter(k => k.test).map(k => k.end).sort().pop();
+      if (letzteProbe && heute() <= letzteProbe) {
+        try {
+          const blobs = require("@netlify/blobs");
+          if (event && event.blobs) blobs.connectLambda(event);
+          await blobs.getStore("testlauf").setJSON("herzschlag", { zeit: new Date().toISOString(), version: VERSION });
+        } catch (e) { console.log("Herzschlag nicht gespeichert:", e.message); }
+      }
+      return ok("Kein Renntag – nichts zu tun.");
     }
-    console.log(`Geparst: ${entries.length} Zeiten.`, entries.slice(0, 6));
+    const meta = evMeta || { ort: "TEST", disziplin: "PGS", start: heute(), end: heute() };
+    console.log("Renntag:", meta.ort, meta.disziplin, "| Version", VERSION);
+    if (meta.test) journal = await oeffneJournal(event);
+
+    const liveUrls = meta.test && !process.env.LIVE_URL ? meta.liveUrls : await findeLiveUrls();
+    if (!liveUrls.length) return ok("Keine Live-Quelle gefunden (noch kein Rennen live?).");
+    console.log("Live-Quellen:", liveUrls);
+
+    // 1. Weg: Datenfeed (<server>/<codex>/main.xml) – alle Quellen loggen,
+    //    die erste mit Zielzeiten verwenden.
+    let alle = null;
+    const zusammenfassung = [];
+    for (const liveUrl of liveUrls) {
+      let feed;
+      try { feed = await ladeFeed(liveUrl); }
+      catch (err) { feed = { liveUrl, codex: codexAusUrl(liveUrl), data: null }; console.log("Feed-Fehler:", err.message); if (journal) journal.log(`Feed-Fehler ${feed.codex}: ${err.message}`); }
+      if (!feed.data) {
+        console.log(`Feed ${feed.codex || liveUrl}: (noch) keine Daten.`);
+        journalFeed(journal, feed, []); zusammenfassung.push(`${feed.codex}: keine Daten`); continue;
+      }
+      logFeed(feed);
+      let e = [];
+      try { e = decodeFeed(feed.data); }
+      catch (err) { console.log("Decoder-Fehler:", err.message); if (journal) journal.log(`Decoder-Fehler ${feed.codex}: ${err.message}`); }
+      console.log(`  Dekodiert: ${e.length} Zielzeiten, davon ${e.filter(x => x.kurs).length} mit Kurs.`, JSON.stringify(e.slice(0, 6)));
+      journalFeed(journal, feed, e); feeds.push(feed);
+      zusammenfassung.push(`${feed.codex}: ${e.length} Zeiten`);
+      if (!alle && e.length) alle = e;
+    }
+    if (meta.test) return ok("Generalprobe (Trockenlauf): " + zusammenfassung.join(" | "));
+
+    // 2. Weg (Rückfall): bisheriger generischer Parser auf der Seite selbst
+    if (!alle) {
+      const res = await fetch(liveUrls[0], { headers: UA });
+      if (res.ok) {
+        const text = await res.text();
+        alle = parseLive(text, res.headers.get("content-type"));
+        if (!alle) console.log("Seite ohne erkennbare Daten. Ausschnitt:", text.slice(0, 800));
+      }
+    }
+    if (!alle) return ok("Noch keine Zielzeiten.");
+    const entries = alle.filter(e => e.kurs && e.gender && e.run);
+    if (!entries.length) return ok(`${alle.length} Zeiten gelesen, aber ohne Kurszuteilung – nichts zu schreiben.`);
+    console.log(`Verwendbar: ${entries.length} Zeiten.`, JSON.stringify(entries.slice(0, 6)));
 
     if (process.env.DRY_RUN === "1") return ok("DRY_RUN – nichts geschrieben.");
     if (!FB.password) return ok("CC_PASSWORD fehlt – nichts geschrieben.");
@@ -233,9 +469,28 @@ exports.handler = async () => {
     return ok(`Firebase aktualisiert (${entries.length} Zeiten, Event ${meta.ort}).`);
   } catch (err) {
     console.error(err);
-    return { statusCode: 500, body: String(err.message || err) };
+    return ok("Fehler: " + String(err.message || err), 500);
   }
 };
+
+// Selbsttest des Feed-Decoders mit echtem FIS-Feed (Ergänzung Michael/Claude):
+//   node functions/poller.js --selftest-feed
+if (process.argv.includes("--selftest-feed")) {
+  const fs = require("fs"), path = require("path");
+  const roh = fs.readFileSync(path.join(__dirname, "..", "test", "fixtures", "novius-al5409-main.xml"), "utf8").trim();
+  const d = phpUnserialize(roh.replace(/^<lt>/, "").replace(/<\/lt>$/, ""));
+  logFeed({ codex: "al5409", url: "fixture", data: d });
+  const e = decodeFeed(d);
+  const pruef = (txt, ok) => { console.log((ok ? "OK   " : "FEHL ") + txt); if (!ok) process.exitCode = 1; };
+  const st1 = e.find(x => x.name === "STOESSEL" && x.run === "q1");
+  const st2 = e.find(x => x.name === "STOESSEL" && x.run === "q2");
+  pruef("Lauf 1: 24 Zielzeiten", e.filter(x => x.run === "q1").length === 24);
+  pruef("Lauf 2: 20 Zielzeiten", e.filter(x => x.run === "q2").length === 20);
+  pruef("STOESSEL Lauf 1 = 51.88", st1 && st1.zeit === 51.88);
+  pruef("STOESSEL Lauf 2 = 50.59 (102.47 kumuliert - 51.88)", st2 && st2.zeit === 50.59);
+  pruef("Geschlecht = frauen", e.every(x => x.gender === "frauen"));
+  pruef("DNF/DQ ausgelassen (RICAU)", !e.some(x => x.name === "RICAU"));
+}
 
 // Lokaler Selbsttest der Zuordnungslogik: node functions/poller.js --selftest
 if (process.argv.includes("--selftest")) {

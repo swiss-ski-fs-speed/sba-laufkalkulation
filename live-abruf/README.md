@@ -47,13 +47,24 @@ Zusätzlich sinnvoll, **vor** dem Saisonstart:
   dieses Rennens durch und loggt gefundene Dokumente, erkannte Kurszuteilungen
   und Zeiten – echte FIS-PDFs, heute testbar. Anhand der Logs wird der
   Parser einmalig geschärft. Danach `TEST_RACE` wieder entfernen.
-- **Generalprobe Sölden (24./25. Okt. 2026):** Beim Ski-Alpin-Saisonstart
-  läuft die echte FIS-Live-Infrastruktur zum ersten Mal in der Saison.
-  Am Rennmorgen (Damen Sa 24.10., Herren So 25.10., Läufe ca. 10:00/13:00)
-  `FORCE=1` und `DRY_RUN=1` setzen – der `poller` findet die echten
-  Live-Links und loggt die Datenstruktur. Logs sichern (Netlify → Functions
-  → poller), damit der Live-Parser vor Snow Ruyi fertig geschärft ist.
-  Danach `FORCE` wieder entfernen.
+- **Generalprobe Sölden (24./25. Okt. 2026) – läuft automatisch:** Im
+  Kalender von `poller.js` steht ein Eintrag mit `test: true` für die beiden
+  Ski-Alpin-Rennen (Damen-RS Codex 5001, Herren-RS Codex 0001). An diesen
+  Tagen liest der `poller` ohne weitere Einstellungen jede Minute den echten
+  Datenfeed (`<server>/<codex>/main.xml`, siehe Kommentar in `poller.js`) und
+  schreibt **nie** in die App (Trockenlauf). Ergebnisse landen im Journal
+  (Netlify Blobs) und sind ohne Netlify-Login lesbar:
+
+  | Adresse (unter `https://sba-live-abruf.netlify.app`) | Inhalt |
+  |---|---|
+  | `/.netlify/functions/testlog` | Status, Zähler, Beispiele, Meldungen, Herzschlag |
+  | `/.netlify/functions/testlog?raw=al5001-max` | Roh-Feed mit den meisten Zeiten |
+  | `/.netlify/functions/testlog?selbsttest=1` | Prüft den Speicher |
+
+  Ski Alpin hat keine Kurse Blau/Rot – erwartet sind Zielzeiten («al5001: N Zeiten») ohne
+  Kurszuteilung. Geprüft wird der Weg bis zu den dekodierten Zielzeiten.
+  Nach dem 25.10. ist der Eintrag wirkungslos. Offline-Test:
+  `node functions/poller.js --selftest-feed`.
 
 ## Einrichten (einmalig, ~10 Minuten)
 
