@@ -41,7 +41,7 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-10-20 feed-v1";
+const VERSION = "2026-10-24 feed-v2";
 
 // FIS-Weltcup-Kalender Snowboard Alpin 2026/27 (Parallel-Disziplinen)
 // Einträge mit test:true sind Generalproben: laufen ohne FORCE/LIVE_URL,
@@ -131,13 +131,20 @@ function codexAusUrl(url) {
   return m ? m[1].toLowerCase() : null;
 }
 
-function phpUnserialize(text) {
-  const buf = Buffer.from(text, "utf8");
+// Arbeitet auf Bytes: Die FIS liefert gemischte Kodierungen (am 24.10.
+// in Sölden: "Sölden" teils UTF-8, teils Latin-1). Längenangaben sind Bytes;
+// jeder String wird einzeln als UTF-8 gelesen, sonst als Latin-1.
+function phpUnserialize(input) {
+  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input, "utf8");
+  const str = (a, b) => {
+    const u = buf.toString("utf8", a, b);
+    return Buffer.from(u, "utf8").equals(buf.subarray(a, b)) ? u : buf.toString("latin1", a, b);
+  };
   let i = 0;
   const bis = ch => {
     const j = buf.indexOf(ch, i);
     if (j < 0) throw new Error("PHP-Format: '" + ch + "' fehlt ab Position " + i);
-    const v = buf.toString("utf8", i, j); i = j + 1; return v;
+    const v = buf.toString("latin1", i, j); i = j + 1; return v;
   };
   function lies() {
     const t = String.fromCharCode(buf[i]); i += 2;
@@ -146,7 +153,7 @@ function phpUnserialize(text) {
     if (t === "i" || t === "d") return Number(bis(";"));
     if (t === "s") {
       const n = Number(bis(":")); i += 1;           // Länge in Bytes, dann '"'
-      const v = buf.toString("utf8", i, i + n); i += n + 2; return v;
+      const v = str(i, i + n); i += n + 2; return v;
     }
     if (t === "a") {
       const n = Number(bis(":")); i += 1;           // '{'
@@ -173,9 +180,15 @@ async function ladeFeed(liveUrl) {
     const url = `${h}/${codex}/main.xml?t=${Date.now()}`;
     const res = await fetch(url, { headers: UA }).catch(() => null);
     if (!res || !res.ok) continue;
-    const text = (await res.text()).trim();
+    const roh = Buffer.from(await res.arrayBuffer());
+    const text = roh.toString("latin1").trim();      // verlustfrei, für das Journal
     if (!text.startsWith("<lt>")) continue;
-    return { liveUrl, codex, url, text, data: phpUnserialize(text.replace(/^<lt>/, "").replace(/<\/lt>$/, "")) };
+    const a = roh.indexOf("<lt>") + 4, b = roh.lastIndexOf("</lt>");
+    try {
+      return { liveUrl, codex, url, text, data: phpUnserialize(roh.subarray(a, b > a ? b : roh.length)) };
+    } catch (err) {
+      return { liveUrl, codex, url, text, data: null, fehler: err.message };  // Rohdaten trotzdem ins Journal
+    }
   }
   return { liveUrl, codex, data: null };
 }
@@ -430,8 +443,11 @@ exports.handler = async (event) => {
       try { feed = await ladeFeed(liveUrl); }
       catch (err) { feed = { liveUrl, codex: codexAusUrl(liveUrl), data: null }; console.log("Feed-Fehler:", err.message); if (journal) journal.log(`Feed-Fehler ${feed.codex}: ${err.message}`); }
       if (!feed.data) {
-        console.log(`Feed ${feed.codex || liveUrl}: (noch) keine Daten.`);
-        journalFeed(journal, feed, []); zusammenfassung.push(`${feed.codex}: keine Daten`); continue;
+        const grund = feed.fehler ? "Decoder-Fehler: " + feed.fehler : "keine Daten";
+        console.log(`Feed ${feed.codex || liveUrl}: ${grund}`);
+        journalFeed(journal, feed, []);
+        if (feed.text) { feeds.push(feed); if (journal) journal.status.laeufe[feed.codex].letzterStand = grund; }
+        zusammenfassung.push(`${feed.codex}: ${grund}`); continue;
       }
       logFeed(feed);
       let e = [];
