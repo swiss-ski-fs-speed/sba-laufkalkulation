@@ -41,7 +41,7 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-10-25 sba-v1";
+const VERSION = "2026-10-25 sba-v2";
 
 // Renntage (ein Eintrag pro Quali-Tag, mit FIS-Codex der Quali-Rennen) aus
 // lib/kalender.js – gemeinsam mit dem PDF-Abruf (Ergänzung Michael/Claude).
@@ -446,6 +446,19 @@ function journalFeed(j, feed, e) {
 // ---------------------------------------------------------------------------
 exports.VERSION = VERSION;
 exports._test = { phpUnserialize, decodeFeed };   // für Tests
+// Nur schreiben, wenn sich am eigenen Auto-Event etwas geändert hat
+// (Ergänzung Michael/Claude, 25.10.2026): weniger Schreibvorgänge, kein
+// unnötiges Überschreiben paralleler Command-Center-Änderungen.
+function autoEvent(state, meta) {
+  const events = Array.isArray(state && state.events) ? state.events : Object.values((state && state.events) || {});
+  return events.find(e => e && e.id === "auto-" + meta.start) || null;
+}
+function anzahlZeiten(ev) {
+  let n = 0;
+  for (const r of (ev && ev.runs) || []) for (const g of ["frauen", "maenner"]) for (const k of ["blau", "rot"]) n += ((r[g] || {})[k] || []).length;
+  return n;
+}
+
 exports.handler = async (event) => {
   let journal = null;
   const feeds = [];
@@ -471,7 +484,7 @@ exports.handler = async (event) => {
     }
     const meta = evMeta || { ort: "TEST", disziplin: "PGS", start: heute(), end: heute() };
     console.log("Renntag:", meta.ort, meta.disziplin, "| Version", VERSION);
-    if (meta.test) journal = await oeffneJournal(event);
+    journal = await oeffneJournal(event);   // an jedem Renntag: Journal für Auswertung (Latenz etc.)
 
     const liveUrls = meta.test && !process.env.LIVE_URL ? meta.liveUrls : await liveQuellen(meta);
     if (!liveUrls.length) return ok("Keine Live-Quelle gefunden (noch kein Rennen live?).");
@@ -502,6 +515,7 @@ exports.handler = async (event) => {
       if (e.length) alle = (alle || []).concat(e);   // Frauen + Männer zusammenführen
     }
     if (meta.test) return ok("Generalprobe (Trockenlauf): " + zusammenfassung.join(" | "));
+    if (journal) journal.log("Feeds: " + zusammenfassung.join(" | "));   // Zeitreihe für die Latenz-Auswertung
 
     // Diagnose: Liefern die Quali-Feeds nichts, die Live-Übersicht loggen
     // (nur zur Kontrolle der Adressen – fremde Rennen werden NIE verwendet).
@@ -528,10 +542,15 @@ exports.handler = async (event) => {
 
     const token = await fbLogin();
     const state = await fbGetState(token);
+    const vorher = JSON.stringify(autoEvent(state, meta));
+    const zeitenVorher = anzahlZeiten(autoEvent(state, meta));
     const neu = upsert(state, meta, entries);
     if (!neu) return ok("Event ist manuell verwaltet – nicht angefasst.");
+    if (JSON.stringify(autoEvent(neu, meta)) === vorher) return ok("Keine neuen Zeiten – nichts geschrieben.");
+    const zuwachs = anzahlZeiten(autoEvent(neu, meta)) - zeitenVorher;
     await fbPutState(token, neu);
-    return ok(`Firebase aktualisiert (${entries.length} Zeiten, Event ${meta.ort}).`);
+    console.log("Neu in der App:", zuwachs, "Zeiten");
+    return ok(`Firebase aktualisiert (+${zuwachs} neue, total ${entries.length} Zeiten, Event ${meta.ort}).`);
   } catch (err) {
     console.error(err);
     return ok("Fehler: " + String(err.message || err), 500);

@@ -180,6 +180,19 @@ function upsert(state, evMeta, entries) {
 }
 
 // --- Handler ----------------------------------------------------------------
+// Nur schreiben, wenn sich am eigenen Auto-Event etwas geändert hat
+// (Ergänzung Michael/Claude, 25.10.2026): weniger Schreibvorgänge, kein
+// unnötiges Überschreiben paralleler Command-Center-Änderungen.
+function autoEvent(state, meta) {
+  const events = Array.isArray(state && state.events) ? state.events : Object.values((state && state.events) || {});
+  return events.find(e => e && e.id === "auto-" + meta.start) || null;
+}
+function anzahlZeiten(ev) {
+  let n = 0;
+  for (const r of (ev && ev.runs) || []) for (const g of ["frauen", "maenner"]) for (const k of ["blau", "rot"]) n += ((r[g] || {})[k] || []).length;
+  return n;
+}
+
 exports.handler = async () => {
   const ok = (msg) => { console.log(msg); return { statusCode: 200, body: msg }; };
   try {
@@ -222,9 +235,14 @@ exports.handler = async () => {
     if (!FB.password) return ok("CC_PASSWORD fehlt – nichts geschrieben.");
     const token = await fbLogin();
     const state = await fbGetState(token);
+    const vorher = JSON.stringify(autoEvent(state, meta));
+    const zeitenVorher = anzahlZeiten(autoEvent(state, meta));
     const neu = upsert(state, meta, alle);
     if (!neu) return ok("Event ist manuell verwaltet – nicht angefasst.");
+    if (JSON.stringify(autoEvent(neu, meta)) === vorher) return ok("Keine neuen Zeiten – nichts geschrieben.");
+    const zuwachs = anzahlZeiten(autoEvent(neu, meta)) - zeitenVorher;
     await fbPutState(token, neu);
+    console.log("Neu in der App:", zuwachs, "Zeiten");
     return ok(`Firebase aktualisiert (${alle.length} Zeiten aus PDFs, Event ${meta.ort}).`);
   } catch (err) {
     console.error(err);
