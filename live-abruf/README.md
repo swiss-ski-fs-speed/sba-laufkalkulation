@@ -47,6 +47,14 @@ Zusätzlich sinnvoll, **vor** dem Saisonstart:
   dieses Rennens durch und loggt gefundene Dokumente, erkannte Kurszuteilungen
   und Zeiten – echte FIS-PDFs, heute testbar. Anhand der Logs wird der
   Parser einmalig geschärft. Danach `TEST_RACE` wieder entfernen.
+- **Live-Quellen findet der Dienst selbst (seit 25.10.2026):** In
+  `lib/kalender.js` steht pro Quali-Tag der FIS-Codex der Quali-Rennen
+  (Frauen/Männer). Am Renntag liest der `poller` daraus
+  `live.fis-ski.com/lv-sb<codex>.htm` bzw. den Datenfeed `sb<codex>/main.xml`.
+  Fehlt ein Codex, sucht er ihn auf der FIS-Event-Seite. `LIVE_URL` braucht
+  es nur noch für Sonderfälle. Mehrtägige Weltcups (Mylin, Bansko, Krynica)
+  haben pro Tag ein eigenes Rennen und damit ein eigenes App-Event – in der
+  App einmal «Saisonkalender abgleichen» ausführen.
 - **Generalprobe Sölden (24./25. Okt. 2026) – läuft automatisch:** Im
   Kalender von `poller.js` steht ein Eintrag mit `test: true` für die beiden
   Ski-Alpin-Rennen (Damen-RS Codex 5001, Herren-RS Codex 0001). An diesen

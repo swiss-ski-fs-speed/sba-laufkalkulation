@@ -35,25 +35,10 @@ const FB = {
 };
 const SEASON = "2027"; // FIS-Saisoncode 2026/27
 
-// Kalender inkl. FIS-Event-IDs (für die Rennsuche am Renntag).
-// Event-IDs der später dazugekommenen Rennen (China, Ratschings) bei Bedarf
-// aus dem FIS-Kalender nachtragen (event-details.html?eventid=...).
-const KALENDER = [
-  { ort: "Snow Ruyi (TBC)",   disziplin: "PGS", start: "2026-11-28", end: "2026-11-29", eventid: null },
-  { ort: "Mylin",             disziplin: "PGS", start: "2026-12-05", end: "2026-12-06", eventid: null },
-  { ort: "Cortina d'Ampezzo", disziplin: "PGS", start: "2026-12-12", end: "2026-12-12", eventid: "62758" },
-  { ort: "Carezza",           disziplin: "PGS", start: "2026-12-17", end: "2026-12-17", eventid: "62759" },
-  { ort: "Davos",             disziplin: "PSL", start: "2026-12-19", end: "2026-12-19", eventid: "62760" },
-  { ort: "Scuol",             disziplin: "PGS", start: "2027-01-09", end: "2027-01-09", eventid: "62761" },
-  { ort: "Bansko",            disziplin: "PGS", start: "2027-01-16", end: "2027-01-17", eventid: "62762" },
-  { ort: "Rogla",             disziplin: "PGS", start: "2027-01-23", end: "2027-01-23", eventid: "62763" },
-  { ort: "Bad Gastein",       disziplin: "PSL", start: "2027-01-26", end: "2027-01-27", eventid: "62764" },
-  { ort: "Ratschings",        disziplin: "PSL", start: "2027-01-30", end: "2027-01-30", eventid: null },
-  { ort: "Krynica",           disziplin: "PGS", start: "2027-02-27", end: "2027-02-28", eventid: "62765" },
-  { ort: "WM Montafon (PGS)",  disziplin: "PGS", start: "2027-03-07", end: "2027-03-07", eventid: "62999" },
-  { ort: "WM Montafon (PSL)",  disziplin: "PSL", start: "2027-03-09", end: "2027-03-10", eventid: "62999" },
-  { ort: "Winterberg",        disziplin: "PSL", start: "2027-03-20", end: "2027-03-21", eventid: "62766" },
-];
+// Renntage + Quali-Codexe: gemeinsam mit dem Live-Abruf in lib/kalender.js
+// (Ergänzung Michael/Claude, 25.10.2026 – pro Quali-Tag ein Eintrag).
+const { RENNTAGE, findeQualiCodexe } = require("../lib/kalender.js");
+const KALENDER = RENNTAGE.map(r => ({ ...r, start: r.datum, end: r.datum }));
 
 const UA = { "User-Agent": "Mozilla/5.0 (sba-laufkalkulation pdf-abruf; read-only)" };
 
@@ -66,13 +51,15 @@ async function findeCodexListe(meta) {
     const [season, codex] = process.env.TEST_RACE.split(":");
     return { season, codexe: [codex] };
   }
-  if (!meta.eventid) { console.log("Keine FIS-Event-ID hinterlegt für", meta.ort); return { season: SEASON, codexe: [] }; }
-  const url = `https://www.fis-ski.com/DB/general/event-details.html?sectorcode=SB&eventid=${meta.eventid}&seasoncode=${SEASON}`;
-  const res = await fetch(url, { headers: UA });
-  if (!res.ok) throw new Error("Event-Seite: HTTP " + res.status);
-  const html = await res.text();
-  const codexe = [...new Set([...html.matchAll(/racecodex=(\d+)/g)].map(m => m[1]))];
-  console.log("Gefundene Codex-Nummern:", codexe);
+  // Quali-Codexe aus dem Kalender; sonst von der FIS-Event-Seite (die frühere
+  // Suche nach "racecodex=" fand dort nichts – Ergänzung Michael/Claude).
+  let quali = meta.quali;
+  if (!quali && meta.eventid) {
+    try { quali = await findeQualiCodexe(meta.eventid, meta.start, SEASON, UA); }
+    catch (e) { console.log("Quali-Codexe nicht ermittelbar:", e.message); }
+  }
+  const codexe = quali ? [quali.frauen, quali.maenner].filter(Boolean) : [];
+  console.log("Quali-Codex-Nummern:", codexe);
   return { season: SEASON, codexe };
 }
 

@@ -41,29 +41,19 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-10-24 feed-v4";
+const VERSION = "2026-10-25 sba-v1";
 
-// FIS-Weltcup-Kalender Snowboard Alpin 2026/27 (Parallel-Disziplinen)
+// Renntage (ein Eintrag pro Quali-Tag, mit FIS-Codex der Quali-Rennen) aus
+// lib/kalender.js – gemeinsam mit dem PDF-Abruf (Ergänzung Michael/Claude).
 // Einträge mit test:true sind Generalproben: laufen ohne FORCE/LIVE_URL,
 // schreiben NIE in die App (immer Trockenlauf) und führen ein Journal, das
-// über /.netlify/functions/testlog lesbar ist (Ergänzung Michael/Claude).
+// über /.netlify/functions/testlog lesbar ist.
+const { RENNTAGE, findeQualiCodexe } = require("../lib/kalender.js");
+const SEASONCODE = "2027";
 const KALENDER = [
   { ort: "Generalprobe Sölden (Ski Alpin)", disziplin: "TEST", start: "2026-10-24", end: "2026-10-25", test: true,
     liveUrls: ["https://live.fis-ski.com/lv-al5001.htm", "https://live.fis-ski.com/lv-al0001.htm"] },
-  { ort: "Snow Ruyi (TBC)",   disziplin: "PGS", start: "2026-11-28", end: "2026-11-29" },
-  { ort: "Mylin",             disziplin: "PGS", start: "2026-12-05", end: "2026-12-06" },
-  { ort: "Cortina d'Ampezzo", disziplin: "PGS", start: "2026-12-12", end: "2026-12-12" },
-  { ort: "Carezza",           disziplin: "PGS", start: "2026-12-17", end: "2026-12-17" },
-  { ort: "Davos",             disziplin: "PSL", start: "2026-12-19", end: "2026-12-19" },
-  { ort: "Scuol",             disziplin: "PGS", start: "2027-01-09", end: "2027-01-09" },
-  { ort: "Bansko",            disziplin: "PGS", start: "2027-01-16", end: "2027-01-17" },
-  { ort: "Rogla",             disziplin: "PGS", start: "2027-01-23", end: "2027-01-23" },
-  { ort: "Bad Gastein",       disziplin: "PSL", start: "2027-01-26", end: "2027-01-27" },
-  { ort: "Ratschings",        disziplin: "PSL", start: "2027-01-30", end: "2027-01-30" },
-  { ort: "Krynica",           disziplin: "PGS", start: "2027-02-27", end: "2027-02-28" },
-  { ort: "WM Montafon (PGS)",  disziplin: "PGS", start: "2027-03-07", end: "2027-03-07" },
-  { ort: "WM Montafon (PSL)",  disziplin: "PSL", start: "2027-03-09", end: "2027-03-10" },
-  { ort: "Winterberg",        disziplin: "PSL", start: "2027-03-20", end: "2027-03-21" },
+  ...RENNTAGE.map(r => ({ ...r, start: r.datum, end: r.datum })),
 ];
 
 // Live-Übersicht: Standard Snowboard. Für die Generalprobe (Ski Alpin) per
@@ -98,6 +88,25 @@ const norm = {
 // ---------------------------------------------------------------------------
 // Schritt 2: Live-Quelle finden
 // ---------------------------------------------------------------------------
+// Live-Quellen eines Renntags selbst bestimmen (Ergänzung Michael/Claude):
+//   1. LIVE_URL (Umgebungsvariable) – nur für Sonderfälle
+//   2. Quali-Codexe aus dem Kalender -> live.fis-ski.com/lv-sb<codex>.htm
+//   3. Quali-Codexe von der FIS-Event-Seite (falls im Kalender keine stehen)
+//   4. Snowboard-Live-Übersicht durchsuchen (letzter Rückfall)
+async function liveQuellen(meta) {
+  if (process.env.LIVE_URL) return findeLiveUrls();
+  let quali = meta.quali;
+  if (!quali && meta.eventid) {
+    try { quali = await findeQualiCodexe(meta.eventid, meta.start, SEASONCODE, UA); }
+    catch (e) { console.log("Quali-Codexe nicht ermittelbar:", e.message); }
+  }
+  if (quali) {
+    // Frauen zuerst (Reihenfolge egal – geloggt werden alle)
+    return [quali.frauen, quali.maenner].filter(Boolean).map(c => `${LIVE_HOST}/lv-sb${c}.htm`);
+  }
+  return findeLiveUrls();
+}
+
 // LIVE_URL darf eine kommagetrennte Liste sein (z.B. Damen- und Herren-Rennen);
 // geloggt werden alle, verwendet wird die erste Quelle mit Zielzeiten.
 async function findeLiveUrls() {
@@ -121,11 +130,13 @@ async function findeLiveUrls() {
 // PHP-serialisiertes Array, eingepackt in <lt>…</lt>. Aufbau (verifiziert am
 // 20.10.2026 mit al5409, Riesenslalom Cerro Catedral vom 13.9.2026):
 //   racers[]                       = [racerId, NAME, Vorname, Nation, ...]
-//   startlist[0][0][lauf][pos]     = [racerId, Startnr., Status, Zusatz]
+//   startlist[0][0][lauf][pos]     = [racerId, Startnr., Status, StatusQuali,
+//                                     Farbe ("blue"/"red"), Gegner]  (Schema 2)
 //   result[0][lauf][pos][messpunkt]= Zeit in ms; "123450:c" = kumuliert
 //   racedef[0][lauf][messpunkt]    = [Typ ("finish", "inter" ...), Nr.]
-// Offen bis zum ersten Snowboard-Rennen: wo die Kurszuteilung (Blau/Rot)
-// steht. Vermutung: Zusatzfeld der Startliste oder racedef -> wird geloggt.
+// Kurszuteilung (Blau/Rot): laut offizieller FIS-Live-App (Disziplin "PAQ",
+// Parallel-Quali) das Feld "Farbe" der Startliste (Index 4). Aus dem Code der
+// App abgeleitet, am echten Snowboard-Feed erst in Snow Ruyi bestätigt.
 function codexAusUrl(url) {
   const m = String(url).match(/lv-([a-z]{2}\d{3,5})\.htm/i);
   return m ? m[1].toLowerCase() : null;
@@ -257,7 +268,7 @@ function decodeFeed(d) {
       const r = racers.get(s[0]);
       const zeit = norm.zeit(ms / 1000);
       if (!r || !zeit) continue;
-      out.push({ name: String(r[1]).trim().toUpperCase(), zeit, gender, run, kurs: norm.kurs(s[3]), bib: s[1] });
+      out.push({ name: String(r[1]).trim().toUpperCase(), zeit, gender, run, kurs: norm.kurs(s[4]) || norm.kurs(s[3]), bib: s[1] });
     }
   }
   return out;
@@ -462,7 +473,7 @@ exports.handler = async (event) => {
     console.log("Renntag:", meta.ort, meta.disziplin, "| Version", VERSION);
     if (meta.test) journal = await oeffneJournal(event);
 
-    const liveUrls = meta.test && !process.env.LIVE_URL ? meta.liveUrls : await findeLiveUrls();
+    const liveUrls = meta.test && !process.env.LIVE_URL ? meta.liveUrls : await liveQuellen(meta);
     if (!liveUrls.length) return ok("Keine Live-Quelle gefunden (noch kein Rennen live?).");
     console.log("Live-Quellen:", liveUrls);
 
@@ -488,9 +499,15 @@ exports.handler = async (event) => {
       console.log(`  Dekodiert: ${e.length} Zielzeiten, davon ${e.filter(x => x.kurs).length} mit Kurs.`, JSON.stringify(e.slice(0, 6)));
       journalFeed(journal, feed, e); feeds.push(feed);
       zusammenfassung.push(`${feed.codex}: ${e.length} Zeiten`);
-      if (!alle && e.length) alle = e;
+      if (e.length) alle = (alle || []).concat(e);   // Frauen + Männer zusammenführen
     }
     if (meta.test) return ok("Generalprobe (Trockenlauf): " + zusammenfassung.join(" | "));
+
+    // Diagnose: Liefern die Quali-Feeds nichts, die Live-Übersicht loggen
+    // (nur zur Kontrolle der Adressen – fremde Rennen werden NIE verwendet).
+    if (!alle && !process.env.LIVE_URL) {
+      try { console.log("Zur Kontrolle – Live-Übersicht:", await findeLiveUrls()); } catch (e) { /* egal */ }
+    }
 
     // 2. Weg (Rückfall): bisheriger generischer Parser auf der Seite selbst
     if (!alle) {
