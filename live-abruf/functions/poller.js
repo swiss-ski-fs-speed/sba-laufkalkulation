@@ -41,7 +41,7 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-10-24 feed-v2";
+const VERSION = "2026-10-24 feed-v3";
 
 // FIS-Weltcup-Kalender Snowboard Alpin 2026/27 (Parallel-Disziplinen)
 // Einträge mit test:true sind Generalproben: laufen ohne FORCE/LIVE_URL,
@@ -131,15 +131,31 @@ function codexAusUrl(url) {
   return m ? m[1].toLowerCase() : null;
 }
 
-// Arbeitet auf Bytes: Die FIS liefert gemischte Kodierungen (am 24.10.
-// in Sölden: "Sölden" teils UTF-8, teils Latin-1). Längenangaben sind Bytes;
-// jeder String wird einzeln als UTF-8 gelesen, sonst als Latin-1.
+// Arbeitet auf Bytes und ist tolerant (Ergänzung Michael/Claude, 24.10.2026):
+// Die FIS liefert teils doppelt kodierte Texte, deren Längenangabe nicht mehr
+// stimmt (Sölden 24.10.: s:7:"SÃÂ¶lden" = 9 Bytes). Stimmt die Länge nicht,
+// wird das nächstgelegene String-Ende ('";' + gültiges Folgezeichen) gesucht.
+// Texte: UTF-8 (doppelte Kodierung wird rückgängig gemacht), sonst Latin-1.
 function phpUnserialize(input) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input, "utf8");
+  const utf8ok = b => Buffer.from(b.toString("utf8"), "utf8").equals(b);
   const str = (a, b) => {
-    const u = buf.toString("utf8", a, b);
-    return Buffer.from(u, "utf8").equals(buf.subarray(a, b)) ? u : buf.toString("latin1", a, b);
+    const roh = buf.subarray(a, b);
+    if (!utf8ok(roh)) return roh.toString("latin1");
+    let u = roh.toString("utf8");
+    for (let k = 0; k < 2 && /[\u00c2\u00c3]/.test(u) && /^[\u0000-\u00ff]*$/.test(u); k++) {
+      const zurueck = Buffer.from(u, "latin1");
+      if (!utf8ok(zurueck)) break;
+      u = zurueck.toString("utf8");
+    }
+    return u;
   };
+  const istToken = p => {
+    const c = buf[p];
+    if (c === 0x7d) return true;                                   // '}'
+    return c !== undefined && "siabdN".includes(String.fromCharCode(c)) && (buf[p + 1] === 0x3a || buf[p + 1] === 0x3b);
+  };
+  const istEnde = p => buf[p] === 0x22 && buf[p + 1] === 0x3b && (p + 2 >= buf.length || istToken(p + 2));
   let i = 0;
   const bis = ch => {
     const j = buf.indexOf(ch, i);
@@ -153,7 +169,18 @@ function phpUnserialize(input) {
     if (t === "i" || t === "d") return Number(bis(";"));
     if (t === "s") {
       const n = Number(bis(":")); i += 1;           // Länge in Bytes, dann '"'
-      const v = str(i, i + n); i += n + 2; return v;
+      const a = i;
+      let e = a + n;
+      if (!istEnde(e)) {                            // Länge stimmt nicht -> nächstes gültiges Ende
+        let best = -1;
+        for (let d = 1; d <= 64 && best < 0; d++) {
+          if (istEnde(a + n + d)) best = a + n + d;
+          else if (a + n - d >= a && istEnde(a + n - d)) best = a + n - d;
+        }
+        if (best < 0) throw new Error("PHP-Format: String-Ende nicht gefunden ab Position " + a);
+        e = best;
+      }
+      const v = str(a, e); i = e + 2; return v;
     }
     if (t === "a") {
       const n = Number(bis(":")); i += 1;           // '{'
@@ -403,6 +430,7 @@ function journalFeed(j, feed, e) {
 // Handler
 // ---------------------------------------------------------------------------
 exports.VERSION = VERSION;
+exports._test = { phpUnserialize, decodeFeed };   // für Tests
 exports.handler = async (event) => {
   let journal = null;
   const feeds = [];
