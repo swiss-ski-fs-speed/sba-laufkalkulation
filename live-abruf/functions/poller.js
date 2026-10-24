@@ -41,7 +41,7 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-10-24 feed-v3";
+const VERSION = "2026-10-24 feed-v4";
 
 // FIS-Weltcup-Kalender Snowboard Alpin 2026/27 (Parallel-Disziplinen)
 // Einträge mit test:true sind Generalproben: laufen ohne FORCE/LIVE_URL,
@@ -245,7 +245,11 @@ function decodeFeed(d) {
       const [msRoh, flag] = String(messung).split(":");
       let ms = Number(msRoh);
       if (!isFinite(ms)) continue;
-      if (flag === "c") {                            // kumuliert -> Laufzeit
+      // Kumulierte Zeit -> Laufzeit. Markiert mit ":c" (Bariloche) ODER
+      // unmarkiert, aber offensichtlich Gesamtzeit (Sölden 24.10.: 2. Lauf
+      // 135650 = 2:15.65 bei 67270 im 1. Lauf). Regel: > 1.5 x Lauf 1.
+      const kumuliert = flag === "c" || (lauf > 0 && lauf1.has(s[0]) && ms > 1.5 * lauf1.get(s[0]));
+      if (kumuliert) {
         if (!lauf1.has(s[0])) continue;
         ms -= lauf1.get(s[0]);
       }
@@ -534,6 +538,10 @@ if (process.argv.includes("--selftest-feed")) {
   pruef("STOESSEL Lauf 2 = 50.59 (102.47 kumuliert - 51.88)", st2 && st2.zeit === 50.59);
   pruef("Geschlecht = frauen", e.every(x => x.gender === "frauen"));
   pruef("DNF/DQ ausgelassen (RICAU)", !e.some(x => x.name === "RICAU"));
+  // Variante wie Sölden 24.10.: Gesamtzeit im 2. Lauf ohne ":c"-Markierung
+  const d2 = phpUnserialize(roh.replace(/^<lt>/, "").replace(/<\/lt>$/, "").replace(/s:8:"(\d+):c";/g, (m, z) => "i:" + z + ";"));
+  const st2b = decodeFeed(d2).find(x => x.name === "STOESSEL" && x.run === "q2");
+  pruef("Unmarkierte Gesamtzeit: STOESSEL Lauf 2 = 50.59", st2b && st2b.zeit === 50.59);
 }
 
 // Lokaler Selbsttest der Zuordnungslogik: node functions/poller.js --selftest
