@@ -41,7 +41,7 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-10-25 sba-v2";
+const VERSION = "2026-10-25 sba-v3";
 
 // Renntage (ein Eintrag pro Quali-Tag, mit FIS-Codex der Quali-Rennen) aus
 // lib/kalender.js – gemeinsam mit dem PDF-Abruf (Ergänzung Michael/Claude).

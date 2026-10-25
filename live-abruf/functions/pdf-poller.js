@@ -1,32 +1,26 @@
 /**
  * SBA Laufkalkulation – PDF-Abruf (Netlify Scheduled Function, alle 5 Min.)
  * =========================================================================
- * Zweite, robuste Datenquelle neben dem Live-Abruf (poller.js): Die FIS
- * publiziert an jedem Rennen offizielle PDFs pro Quali-Lauf – Startlisten
- * (mit Kurszuteilung blau/rot pro Startnummer) und Resultatlisten (Zeiten).
- * Diese erscheinen jeweils kurz nach Laufende. Dieser Dienst:
+ * Zweite, robuste Datenquelle neben dem Live-Abruf (poller.js). Neu aufgebaut
+ * am 25.10.2026 (Ergänzung Michael/Claude) nach Prüfung an echten FIS-Daten:
  *
- *   1. Renntag-Check (gleicher Kalender wie poller.js; FORCE=1 übergeht ihn).
- *   2. Findet die Quali-Rennen des Tages über die FIS-Event-Seite
- *      (Event-IDs im Kalender) und sammelt deren Codex-Nummern.
- *   3. Probiert die bekannten FIS-PDF-Adressmuster durch
- *      (data.fis-ski.com/pdf/<Saison>/SB/<Codex>/...), loggt alle Treffer.
- *   4. Extrahiert Text (pdf-parse), liest Kurszuteilung aus den Startlisten
- *      und Zeiten aus den Resultatlisten, und schreibt sie in die Firebase –
- *      gleiches Sicherheitsnetz wie der Live-Abruf (nur auto-Events).
+ *   1. Renntag-Check (Kalender in lib/kalender.js; FORCE=1 übergeht ihn).
+ *   2. FIS-Event-Seite lesen -> Quali-Rennen des Tages (raceid, Codex).
+ *   3. Resultat-Seite jedes Quali-Rennens -> PDF-Links nach Beschriftung
+ *      ("Start List - Qualification Run 1", "Results - Qualification Run 2" ...).
+ *      Die früher geratenen Adressen data.fis-ski.com/pdf/... gibt es so nicht.
+ *   4. PDFs lesen (lib/fis-pdf.js): Startlisten -> Kurs pro Startnummer,
+ *      Resultate Lauf 1 (zweispaltig Blau/Rot), Lauf 2 (Gesamttabelle).
+ *   5. In die App schreiben – nur eigene Auto-Events, nur bei Änderungen.
  *
- * TESTBAR HEUTE, mit echten Daten der letzten Saison:
- *   TEST_RACE = "2026:6169"  (Saison:Codex, z.B. Cortina Quali 13.12.2025)
- *   zusammen mit FORCE=1 und DRY_RUN=1 setzen -> der Dienst holt die echten
- *   PDFs von damals, loggt gefundene Dokumente, erkannte Kurse und Zeiten.
- *   Anhand dieser Logs wird der Parser einmalig verifiziert/geschärft.
- *
- * Umgebungsvariablen: wie poller.js (CC_PASSWORD etc.), zusätzlich TEST_RACE.
+ * Testlauf ohne Netlify-Einstellungen: Kalendereintrag mit pdfTest (unten)
+ * liest an den angegebenen Tagen ein Rennen der letzten Saison, schreibt nie
+ * in die App und legt das Ergebnis im Journal ab (testlog -> "pdfTest").
  */
 
-const pdfParse = require("pdf-parse");
+const { RENNTAGE } = require("../lib/kalender.js");
+const fp = require("../lib/fis-pdf.js");
 
-// --- Konfiguration (identisch zu poller.js gehalten) -----------------------
 const FB = {
   apiKey: process.env.FB_API_KEY || "AIzaSyBXZYpxJZgblLr_aBGTo7czWe_IE-giSr4",
   dbUrl: (process.env.FB_DB_URL || "https://sba-laufkalkulation-default-rtdb.europe-west1.firebasedatabase.app").replace(/\/$/, ""),
@@ -34,108 +28,65 @@ const FB = {
   password: process.env.CC_PASSWORD || "",
 };
 const SEASON = "2027"; // FIS-Saisoncode 2026/27
+const UA = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 sba-laufkalkulation (read-only)" };
 
-// Renntage + Quali-Codexe: gemeinsam mit dem Live-Abruf in lib/kalender.js
-// (Ergänzung Michael/Claude, 25.10.2026 – pro Quali-Tag ein Eintrag).
-const { RENNTAGE, findeQualiCodexe } = require("../lib/kalender.js");
-const KALENDER = RENNTAGE.map(r => ({ ...r, start: r.datum, end: r.datum }));
-
-const UA = { "User-Agent": "Mozilla/5.0 (sba-laufkalkulation pdf-abruf; read-only)" };
+const KALENDER = [
+  // PDF-Testlauf mit echten Daten: Cortina 13.12.2025 (Event 57890, Saison 2026)
+  { ort: "PDF-Test Cortina 2025", disziplin: "TEST", start: "2026-10-25", end: "2026-10-28", test: true,
+    pdfTest: { eventid: "57890", season: "2026", datum: "2025-12-13" } },
+  ...RENNTAGE.map(r => ({ ...r, start: r.datum, end: r.datum })),
+];
 
 function heute() { return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Zurich" }); }
 function aktuellesEvent() { const h = heute(); return KALENDER.find(e => h >= e.start && h <= e.end) || null; }
 
-// --- Schritt 2: Codex-Nummern der heutigen Rennen finden -------------------
-async function findeCodexListe(meta) {
-  if (process.env.TEST_RACE) {
-    const [season, codex] = process.env.TEST_RACE.split(":");
-    return { season, codexe: [codex] };
-  }
-  // Quali-Codexe aus dem Kalender; sonst von der FIS-Event-Seite (die frühere
-  // Suche nach "racecodex=" fand dort nichts – Ergänzung Michael/Claude).
-  let quali = meta.quali;
-  if (!quali && meta.eventid) {
-    try { quali = await findeQualiCodexe(meta.eventid, meta.start, SEASON, UA); }
-    catch (e) { console.log("Quali-Codexe nicht ermittelbar:", e.message); }
-  }
-  const codexe = quali ? [quali.frauen, quali.maenner].filter(Boolean) : [];
-  console.log("Quali-Codex-Nummern:", codexe);
-  return { season: SEASON, codexe };
+async function holeText(url) {
+  const res = await fetch(url, { headers: UA });
+  if (!res.ok) throw new Error(`HTTP ${res.status} bei ${url}`);
+  return res.text();
 }
-
-// --- Schritt 3: PDF-Adressmuster durchprobieren ----------------------------
-// Bekanntes FIS-Muster: data.fis-ski.com/pdf/<Saison>/SB/<Codex>/<Saison>SB<Codex><DOK>.pdf
-// Die exakten DOK-Kürzel werden beim ersten Testlauf aus den Logs bestätigt.
-const DOKTYPEN = [
-  { code: "SLQ1", art: "startliste", run: "q1" }, { code: "SLQ2", art: "startliste", run: "q2" },
-  { code: "SL1",  art: "startliste", run: "q1" }, { code: "SL2",  art: "startliste", run: "q2" },
-  { code: "RLQ1", art: "resultat",   run: "q1" }, { code: "RLQ2", art: "resultat",   run: "q2" },
-  { code: "RL1",  art: "resultat",   run: "q1" }, { code: "RL2",  art: "resultat",   run: "q2" },
-  { code: "QUA1", art: "resultat",   run: "q1" }, { code: "QUA2", art: "resultat",   run: "q2" },
-];
-
 async function holePdfText(url) {
   const res = await fetch(url, { headers: UA });
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`PDF HTTP ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.slice(0, 5).toString() !== "%PDF-") return null;
-  try { return (await pdfParse(buf)).text; } catch (e) { console.log("PDF unlesbar:", url, e.message); return null; }
+  if (buf.slice(0, 5).toString() !== "%PDF-") throw new Error("kein PDF");
+  const pdfParse = require("pdf-parse");   // erst hier laden (Tests ohne Abhängigkeit)
+  return (await pdfParse(buf)).text;
 }
 
-// --- Schritt 4: Parsen ------------------------------------------------------
-const norm = {
-  gender(text) {
-    if (/\b(WOMEN|LADIES|DAMEN|FRAUEN)\b/i.test(text)) return "frauen";
-    if (/\b(MEN|HERREN|MÄNNER)\b/i.test(text)) return "maenner";
-    return null;
-  },
-  zeit(s) {
-    const m = String(s).trim().replace(",", ".").match(/^(?:(\d+):)?(\d{1,2}\.\d{2})$/);
-    if (!m) return null;
-    const sec = (m[1] ? parseInt(m[1], 10) * 60 : 0) + parseFloat(m[2]);
-    return sec > 5 && sec < 600 ? Math.round(sec * 100) / 100 : null;
-  },
-};
-
-/** Startliste: Kurszuteilung pro Startnummer ermitteln.
- *  Erkennt Abschnitts-Überschriften ("Blue Course"/"Red Course") und
- *  Zeilen, in denen der Kurs direkt hinter dem Namen steht. */
-function parseStartliste(text) {
-  const bibKurs = {};
-  let aktKurs = null;
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (/BLUE/i.test(line) && /COURSE|KURS/i.test(line)) { aktKurs = "blau"; continue; }
-    if (/RED/i.test(line) && /COURSE|KURS/i.test(line)) { aktKurs = "rot"; continue; }
-    const inline = /\b(BLUE)\b/i.test(line) ? "blau" : /\b(RED)\b/i.test(line) ? "rot" : null;
-    const m = line.match(/^(\d{1,3})\s+/);
-    if (m) {
-      const kurs = inline || aktKurs;
-      if (kurs) bibKurs[m[1]] = kurs;
-    }
-  }
-  return bibKurs;
-}
-
-/** Resultatliste: Rang/Startnummer/Name/Zeit pro Zeile; Kurs aus der Zeile
- *  selbst (BLUE/RED) oder über die Startlisten-Zuteilung. */
-function parseResultate(text, runId, bibKurs) {
-  const gender = norm.gender(text.slice(0, 1500)) || norm.gender(text);
+/** Alle Quali-Daten eines Tages aus den FIS-PDFs. Liefert { entries, protokoll }. */
+async function lesePdfs(eventid, season, datum) {
+  const protokoll = [];
+  const html = await holeText(`https://www.fis-ski.com/DB/general/event-details.html?sectorcode=SB&eventid=${eventid}&seasoncode=${season}`);
+  const tagMonat = new Date(datum + "T12:00:00Z").toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+  const alleRennen = fp.parseEventRennen(html).filter(r => r.quali);
+  // Tagesfilter: Zeile enthält das Datum ("13 Dec"); bei Problemen alle Quali-Rennen
+  const rennen = alleRennen.filter(r => html.split('class="table-row').some(c => c.includes("raceid=" + r.raceid) && c.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").includes(tagMonat)));
+  const quali = rennen.length ? rennen : alleRennen;
+  protokoll.push(`Event ${eventid}: ${quali.length} Quali-Rennen (${quali.map(r => r.codex + "/" + (r.gender || "?")).join(", ")})`);
   const entries = [];
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    // typisch: "1 12 9530000 MUSTERMANN Max 1995 SUI 36.75" (Varianten toleriert)
-    const m = line.match(/^(\d{1,2})\s+(\d{1,3})\s+(?:\d{6,8}\s+)?([A-Za-zÄÖÜäöüéèàŽŠČĆžšćč'’\-. ]{3,40}?)\s+(?:\d{4}\s+)?([A-Z]{3})\b.*?(\d{1,2}:\d{2}\.\d{2}|\d{2,3}\.\d{2})\s*$/);
-    if (!m) continue;
-    const zeit = norm.zeit(m[5]);
-    if (zeit == null) continue;
-    const kurs = /\bBLUE\b/i.test(line) ? "blau" : /\bRED\b/i.test(line) ? "rot" : bibKurs[m[2]] || null;
-    entries.push({ bib: m[2], name: m[3].replace(/\s[A-ZÄÖÜ][a-zäöüéè\-']+.*$/, "").trim(), zeit, run: runId, kurs, gender });
+  for (const r of quali) {
+    const seite = await holeText(`https://www.fis-ski.com/DB/general/results.html?sectorcode=SB&raceid=${r.raceid}`);
+    const anh = fp.parseAnhaenge(seite);
+    const finde = (art, run) => anh.find(a => a.art === art && a.run === run);
+    const text = {};
+    for (const a of anh) {
+      try { text[a.art + a.run] = await holePdfText(a.url); }
+      catch (e) { protokoll.push(`${r.codex} ${a.label}: ${e.message}`); }
+    }
+    const sl1 = text.startlisteq1 ? fp.parseStartlistePdf(text.startlisteq1) : {};
+    const sl2 = text.startlisteq2 ? fp.parseStartlistePdf(text.startlisteq2) : {};
+    const q1 = text.resultatq1 ? fp.parseResultatePdf(text.resultatq1, "q1", sl1) : [];
+    const q2 = text.resultatq2 ? fp.parseResultate2Pdf(text.resultatq2, q1, sl2) : [];
+    for (const e of [...q1, ...q2]) if (!e.gender) e.gender = r.gender;
+    const z = (l, k) => l.filter(e => e.kurs === k).length;
+    protokoll.push(`${r.codex} (${r.gender}): PDFs ${anh.map(a => a.art + "-" + a.run).join(" ")} | Startliste Q1 ${Object.keys(sl1).length}, Q2 ${Object.keys(sl2).length} | Q1 ${q1.length} Zeiten (blau ${z(q1, "blau")}/rot ${z(q1, "rot")}) | Q2 ${q2.length} (blau ${z(q2, "blau")}/rot ${z(q2, "rot")})`);
+    if (!finde("resultat", "q1")) protokoll.push(`${r.codex}: noch keine Resultate Lauf 1`);
+    entries.push(...q1, ...q2);
   }
-  return entries;
+  return { entries, protokoll };
 }
 
-// --- Firebase (identisch zu poller.js) --------------------------------------
 async function fbLogin() {
   const res = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + FB.apiKey,
     { method: "POST", headers: { "Content-Type": "application/json" },
@@ -193,43 +144,40 @@ function anzahlZeiten(ev) {
   return n;
 }
 
-exports.handler = async () => {
+exports.handler = async (event) => {
   const ok = (msg) => { console.log(msg); return { statusCode: 200, body: msg }; };
   try {
     const evMeta = aktuellesEvent();
     if (!evMeta && process.env.FORCE !== "1") return ok("Kein Renntag – nichts zu tun.");
     const meta = evMeta || { ort: "TEST", disziplin: "PGS", start: heute(), end: heute() };
 
-    const { season, codexe } = await findeCodexListe(meta);
-    if (!codexe.length) return ok("Keine Rennen/Codex gefunden.");
-
-    const alle = [];
-    for (const codex of codexe) {
-      const base = `https://data.fis-ski.com/pdf/${season}/SB/${codex}/${season}SB${codex}`;
-      const startlisten = {};
-      // zuerst Startlisten (Kurszuteilung), dann Resultate
-      for (const art of ["startliste", "resultat"]) {
-        for (const d of DOKTYPEN.filter(x => x.art === art)) {
-          const url = base + d.code + ".pdf";
-          const text = await holePdfText(url);
-          if (!text) continue;
-          console.log("PDF gefunden:", url);
-          if (d.art === "startliste") {
-            startlisten[d.run] = parseStartliste(text);
-            console.log(`Startliste ${d.run}: ${Object.keys(startlisten[d.run]).length} Kurszuteilungen`);
-          } else {
-            const entries = parseResultate(text, d.run, startlisten[d.run] || {});
-            const ohneKurs = entries.filter(e => !e.kurs).length;
-            const ohneGender = entries.filter(e => !e.gender).length;
-            console.log(`Resultate ${d.run} (Codex ${codex}): ${entries.length} Zeilen, davon ohne Kurs: ${ohneKurs}, ohne Geschlecht: ${ohneGender}`);
-            if (!entries.length) console.log("Text-Ausschnitt zur Diagnose:\n" + text.slice(0, 1500));
-            alle.push(...entries.filter(e => e.kurs && e.gender));
-          }
-        }
+    // --- PDF-Testlauf: einmal erfolgreich reicht, Ergebnis ins Journal ---
+    if (meta.test && meta.pdfTest) {
+      const blobs = require("@netlify/blobs");
+      if (event && event.blobs) blobs.connectLambda(event);
+      const store = blobs.getStore("testlauf");
+      const bisher = await store.get("pdfTest", { type: "json" });
+      if (bisher && bisher.erfolg) return ok("PDF-Test bereits erfolgreich – nichts zu tun.");
+      let res;
+      try {
+        const { eventid, season, datum } = meta.pdfTest;
+        const r = await lesePdfs(eventid, season, datum);
+        const bsp = k => r.entries.filter(e => e.run === k).slice(0, 4);
+        res = { zeit: new Date().toISOString(), erfolg: r.entries.length > 0, zeiten: r.entries.length,
+                mitKurs: r.entries.filter(e => e.kurs).length, protokoll: r.protokoll, beispieleQ1: bsp("q1"), beispieleQ2: bsp("q2") };
+      } catch (e) {
+        res = { zeit: new Date().toISOString(), erfolg: false, fehler: String(e.message || e) };
       }
+      await store.setJSON("pdfTest", res);
+      return ok("PDF-Test: " + JSON.stringify(res).slice(0, 400));
     }
-    if (!alle.length) return ok("Noch keine verwertbaren PDF-Daten (oder Parser braucht Schärfung – siehe Logs).");
-    console.log(`Total verwertbar: ${alle.length} Zeiten.`, alle.slice(0, 6));
+
+    if (!meta.eventid) return ok("Keine FIS-Event-ID im Kalender.");
+    const { entries, protokoll } = await lesePdfs(meta.eventid, SEASON, meta.start);
+    protokoll.forEach(z => console.log(z));
+    const alle = entries.filter(e => e.kurs && e.gender);
+    if (!alle.length) return ok("Noch keine verwertbaren PDF-Daten.");
+    console.log(`Total verwertbar: ${alle.length} Zeiten.`, JSON.stringify(alle.slice(0, 6)));
 
     if (process.env.DRY_RUN === "1") return ok("DRY_RUN – nichts geschrieben.");
     if (!FB.password) return ok("CC_PASSWORD fehlt – nichts geschrieben.");
@@ -242,23 +190,38 @@ exports.handler = async () => {
     if (JSON.stringify(autoEvent(neu, meta)) === vorher) return ok("Keine neuen Zeiten – nichts geschrieben.");
     const zuwachs = anzahlZeiten(autoEvent(neu, meta)) - zeitenVorher;
     await fbPutState(token, neu);
-    console.log("Neu in der App:", zuwachs, "Zeiten");
-    return ok(`Firebase aktualisiert (${alle.length} Zeiten aus PDFs, Event ${meta.ort}).`);
+    return ok(`Firebase aktualisiert (+${zuwachs} neue, total ${alle.length} Zeiten aus PDFs, Event ${meta.ort}).`);
   } catch (err) {
     console.error(err);
     return { statusCode: 500, body: String(err.message || err) };
   }
 };
 
-// Lokaler Selbsttest der Text-Parser: node functions/pdf-poller.js --selftest
-if (process.argv.includes("--selftest")) {
-  const sl = "QUALIFICATION RUN 1\nBlue Course\n1 ZOGG Julie SUI\n3 MIKI Tsubaki JPN\nRed Course\n2 CORATTI Elisa ITA\n4 RIEGLER Claudia ITA\n";
-  const bk = parseStartliste(sl);
-  console.log("Startliste:", bk);
-  const rl = "CORTINA (ITA) WOMEN QUALIFICATION RUN 1\n" +
-    "1 1 9515159 ZOGG Julie 1994 SUI 36.75\n" +
-    "2 2 9295086 CORATTI Elisa 2001 ITA 36.98\n" +
-    "3 3 9205062 MIKI Tsubaki 2002 JPN 37.24\n" +
-    "4 4 9295031 RIEGLER Claudia 1973 ITA 1:37.16\n";
-  console.log("Resultate:", parseResultate(rl, "q1", bk));
+// Selbsttest mit echten Zeilen aus den FIS-PDFs Cortina 13.12.2025 (Männer-Quali):
+//   node functions/pdf-poller.js --selftest-pdf
+if (process.argv.includes("--selftest-pdf")) {
+  const sl1 = "Men's Parallel Giant Slalom \nSTART LIST QUALIFICATION RUN\nBLUE COURSE\n" +
+    "1 18 9320014 KIM Sangkyum KOR 17 9510316 CAVIEZEL Dario SUI1989 1995\n" +
+    "3 22 7538766 MARCH Aaron ITA 21 9320091 LEE Sangho KOR1986 1995\n" +
+    "8 32 9290107 CORATTI Edwin ITA 31 1054984 KARL Benjamin AUT1991 1985\n";
+  const rl1 = "Men's Parallel Giant Slalom \nRESULTS QUALIFICATION RUN\n" +
+    "1 22 7538766 MARCH Aaron ITA 34.10 21 9320091 LEE Sangho KOR 34.351986 19951\n" +
+    "5 18 9320014 KIM Sangkyum KOR 34.77 25 9290151 FELICETTI Mirko ITA 35.171989 19925\n" +
+    "48 9320129 CHO Wanhee KOR DNF 17 9510316 CAVIEZEL Dario SUI DNF\n";
+  const rl2 = "Men's Parallel Giant Slalom \nRESULTS QUALIFICATION\n" +
+    "1 22 7538766 MARCH Aaron ITA 1 35.58 12 1:09.6834.101986\n" +
+    "2 21 9320091 LEE Sangho KOR 12 34.35 1 1:09.9535.601995\n" +
+    "31 25 9290151 FELICETTI Mirko ITA 35.17 5 DNFDNF1992\n" +
+    "33 46 9531244 WINTERS Cody USA 2235.962000\n";
+  const pruef = (t, ok) => { console.log((ok ? "OK   " : "FEHL ") + t); if (!ok) process.exitCode = 1; };
+  const b1 = fp.parseStartlistePdf(sl1);
+  pruef("Startliste: MARCH blau, LEE rot", b1["22"] === "blau" && b1["21"] === "rot");
+  const q1 = fp.parseResultatePdf(rl1, "q1", b1);
+  pruef("Q1: 4 Zeiten (DNF ausgelassen)", q1.length === 4);
+  pruef("Q1: MARCH 34.10 blau, Männer", q1[0].name === "MARCH" && q1[0].zeit === 34.1 && q1[0].kurs === "blau" && q1[0].gender === "maenner");
+  pruef("Q1: LEE 34.35 rot", q1[1].name === "LEE" && q1[1].zeit === 34.35 && q1[1].kurs === "rot");
+  const q2 = fp.parseResultate2Pdf(rl2, q1, {});
+  pruef("Q2: 2 Zeiten", q2.length === 2);
+  pruef("Q2: MARCH 35.58 rot (Gegenkurs)", q2[0].zeit === 35.58 && q2[0].kurs === "rot");
+  pruef("Q2: LEE 35.60 blau", q2[1].zeit === 35.6 && q2[1].kurs === "blau");
 }
