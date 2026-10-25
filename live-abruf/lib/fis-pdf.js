@@ -9,10 +9,11 @@
  *    data-link=".../competition-attachment/<uuid>.pdf" mit Beschriftung,
  *    z.B. "Start List - Qualification Run 1", "Results - Qualification Run 2".
  *  - PDFs zweispaltig: links BLUE COURSE, rechts RED COURSE, pro Zeile ein Paar.
- *    Text (wie pdf-parse ihn liefert), Startliste:
- *      "1 18 9320014 KIM Sangkyum KOR 17 9510316 CAVIEZEL Dario SUI1989 1995"
+ *    Text nach Zeilen-Aufbereitung (pdf-poller: nach y gruppiert, nach x
+ *    sortiert), Startliste:
+ *      "1 18 9320014 KIM Sangkyum KOR 1989 17 9510316 CAVIEZEL Dario SUI 1995"
  *    Resultate:
- *      "1 22 7538766 MARCH Aaron ITA 34.10 21 9320091 LEE Sangho KOR 34.351986 19951"
+ *      "1 22 7538766 MARCH Aaron ITA 1986 34.10 1 21 9320091 LEE Sangho KOR 1995 34.35"
  *    Eintrag = Startnr. (1-3 Ziffern), FIS-Code (7 Ziffern), Name, Nation,
  *    [Zeit]. Erster Eintrag der Zeile = Blau, zweiter = Rot.
  * Funktionen ohne Netzwerk -> testbar (node functions/pdf-poller.js --selftest-pdf).
@@ -48,7 +49,8 @@ function parseAnhaenge(html) {
   return out;
 }
 
-const EINTRAG = /(\d{1,3}) (\d{7}) ([^\d]+?) ([A-Z]{3})(?:\s*(\d{1,2}:\d{2}\.\d{2}|\d{1,3}\.\d{2}|DNF|DNS|DSQ|DQ))?(?=\s|\d|$)/g;
+// Eintrag: Startnr., FIS-Code, Name, Nation, [Jahrgang], [Zeit|DNF...]
+const EINTRAG = /(\d{1,3}) (\d{7}) ([^\d]+?) ([A-Z]{3})(?: (?:19|20)\d{2})?(?: (\d{1,2}:\d{2}\.\d{2}|\d{1,3}\.\d{2}|DNF|DNS|DSQ|DQ))?(?=\s|$)/g;
 
 function eintraegeProZeile(text) {
   const zeilen = [];
@@ -101,9 +103,9 @@ function parseResultatePdf(text, run, bibKurs) {
 }
 
 /** Resultat-PDF Lauf 2 = Gesamttabelle der Quali. Pro Zeile: Rang, Startnr.,
- *  FIS-Code, Name, Nation, dann (im Text verwürfelt) Lauf-1-Zeit, Lauf-2-Zeit,
- *  Total. Verifiziert Cortina 13.12.2025:
- *    "1 22 7538766 MARCH Aaron ITA 1 35.58 12 1:09.6834.101986"
+ *  FIS-Code, Name, Nation, Jahrgang, Zeit Blau, Rang, Zeit Rot, Rang, Total.
+ *  Verifiziert Cortina 13.12.2025 (Frauen 32/32, Männer 30/30 Zeiten):
+ *    "1 22 7538766 MARCH Aaron ITA 1986 34.10 1 35.58 12 1:09.68"
  *  -> Total = grösste Zeit; Lauf-1-Zeit aus den Lauf-1-Resultaten bekannt;
  *  die übrige Zeit ist Lauf 2. Kurs: Startliste Lauf 2, sonst Gegenkurs zu Lauf 1.
  *  Kontrolle: Lauf 1 + Lauf 2 = Total. */

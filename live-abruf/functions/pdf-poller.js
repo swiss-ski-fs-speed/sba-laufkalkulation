@@ -28,6 +28,7 @@ const FB = {
   password: process.env.CC_PASSWORD || "",
 };
 const SEASON = "2027"; // FIS-Saisoncode 2026/27
+const PDF_VERSION = "2026-10-25 pdf-v3";   // neue Version -> PDF-Test läuft erneut
 const UA = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 sba-laufkalkulation (read-only)" };
 
 const KALENDER = [
@@ -51,19 +52,27 @@ async function holePdfText(url) {
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.slice(0, 5).toString() !== "%PDF-") throw new Error("kein PDF");
   const pdfParse = require("pdf-parse");   // erst hier laden (Tests ohne Abhängigkeit)
-  // Eigene Seitenausgabe: Textstücke einer Zeile MIT Leerzeichen verbinden.
-  // Der Standard von pdf-parse klebt sie zusammen ("1227538766MARCH Aaron..."),
-  // dann sind Rang, Startnummer und FIS-Code nicht mehr trennbar (25.10.2026).
+  // Eigene Seitenausgabe (25.10.2026): Textstücke nach Zeilen gruppieren
+  // (y-Toleranz 3 pt), innerhalb der Zeile nach x sortieren, Leerzeichen nur
+  // bei sichtbarem Abstand. Der Standard von pdf-parse klebt Stücke zusammen
+  // ("1227538766MARCH") und verteilt Spalten je nach PDF auf eigene Zeilen.
   const pagerender = page => page.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
     .then(tc => {
-      let lastY, text = "";
-      for (const item of tc.items) {
-        if (lastY === undefined) text += item.str;
-        else if (lastY == item.transform[5]) text += " " + item.str;
-        else text += "\n" + item.str;
-        lastY = item.transform[5];
+      const zeilen = [];
+      for (const it of tc.items) {
+        if (!it.str || !it.str.trim()) continue;
+        const y = it.transform[5], x = it.transform[4];
+        let z = zeilen.find(r => Math.abs(r.y - y) < 3);
+        if (!z) { z = { y, teile: [] }; zeilen.push(z); }
+        z.teile.push({ x, w: it.width || 0, s: it.str });
       }
-      return text;
+      zeilen.sort((a, b) => b.y - a.y);
+      return zeilen.map(z => {
+        z.teile.sort((a, b) => a.x - b.x);
+        let t = "", ende = null;
+        for (const i of z.teile) { t += (ende === null ? "" : (i.x - ende > 1.5 ? " " : "")) + i.s; ende = i.x + i.w; }
+        return t.replace(/\s+/g, " ").trim();
+      }).join("\n");
     });
   return (await pdfParse(buf, { pagerender })).text;
 }
@@ -171,13 +180,16 @@ exports.handler = async (event) => {
       if (event && event.blobs) blobs.connectLambda(event);
       const store = blobs.getStore("testlauf");
       const bisher = await store.get("pdfTest", { type: "json" });
-      if (bisher && bisher.erfolg) return ok("PDF-Test bereits erfolgreich – nichts zu tun.");
+      if (bisher && bisher.erfolg && bisher.version === PDF_VERSION) return ok("PDF-Test bereits erfolgreich – nichts zu tun.");
       let res;
       try {
         const { eventid, season, datum } = meta.pdfTest;
         const r = await lesePdfs(eventid, season, datum);
         const bsp = k => r.entries.filter(e => e.run === k).slice(0, 4);
-        res = { zeit: new Date().toISOString(), erfolg: r.entries.length > 0, zeiten: r.entries.length,
+        // Erfolg = bei Frauen UND Männern Zeiten aus beiden Läufen, alle mit Kurs
+        const hat = (g, k) => r.entries.some(e => e.gender === g && e.run === k && e.kurs);
+        const erfolg = ["frauen", "maenner"].every(g => hat(g, "q1") && hat(g, "q2")) && r.entries.every(e => e.kurs);
+        res = { version: PDF_VERSION, zeit: new Date().toISOString(), erfolg, zeiten: r.entries.length,
                 mitKurs: r.entries.filter(e => e.kurs).length, protokoll: r.protokoll, beispieleQ1: bsp("q1"), beispieleQ2: bsp("q2") };
       } catch (e) {
         res = { zeit: new Date().toISOString(), erfolg: false, fehler: String(e.message || e) };
@@ -221,19 +233,19 @@ exports.handler = async (event) => {
 // Selbsttest mit echten Zeilen aus den FIS-PDFs Cortina 13.12.2025 (Männer-Quali):
 //   node functions/pdf-poller.js --selftest-pdf
 if (process.argv.includes("--selftest-pdf")) {
-  const sl1 = "Men's Parallel Giant Slalom \nSTART LIST QUALIFICATION RUN\nBLUE COURSE\n" +
-    "1 18 9320014 KIM Sangkyum KOR 17 9510316 CAVIEZEL Dario SUI1989 1995\n" +
-    "3 22 7538766 MARCH Aaron ITA 21 9320091 LEE Sangho KOR1986 1995\n" +
-    "8 32 9290107 CORATTI Edwin ITA 31 1054984 KARL Benjamin AUT1991 1985\n";
-  const rl1 = "Men's Parallel Giant Slalom \nRESULTS QUALIFICATION RUN\n" +
-    "1 22 7538766 MARCH Aaron ITA 34.10 21 9320091 LEE Sangho KOR 34.351986 19951\n" +
-    "5 18 9320014 KIM Sangkyum KOR 34.77 25 9290151 FELICETTI Mirko ITA 35.171989 19925\n" +
-    "48 9320129 CHO Wanhee KOR DNF 17 9510316 CAVIEZEL Dario SUI DNF\n";
-  const rl2 = "Men's Parallel Giant Slalom \nRESULTS QUALIFICATION\n" +
-    "1 22 7538766 MARCH Aaron ITA 1 35.58 12 1:09.6834.101986\n" +
-    "2 21 9320091 LEE Sangho KOR 12 34.35 1 1:09.9535.601995\n" +
-    "31 25 9290151 FELICETTI Mirko ITA 35.17 5 DNFDNF1992\n" +
-    "33 46 9531244 WINTERS Cody USA 2235.962000\n";
+  const sl1 = "Men's Parallel Giant Slalom\nSTART LIST QUALIFICATION RUN\nBLUE COURSE\n" +
+    "1 18 9320014 KIM Sangkyum KOR 1989 17 9510316 CAVIEZEL Dario SUI 1995\n" +
+    "3 22 7538766 MARCH Aaron ITA 1986 21 9320091 LEE Sangho KOR 1995\n" +
+    "8 32 9290107 CORATTI Edwin ITA 1991 31 1054984 KARL Benjamin AUT 1985\n";
+  const rl1 = "Men's Parallel Giant Slalom\nRESULTS QUALIFICATION RUN\n" +
+    "1 22 7538766 MARCH Aaron ITA 1986 34.10 1 21 9320091 LEE Sangho KOR 1995 34.35\n" +
+    "5 18 9320014 KIM Sangkyum KOR 1989 34.77 5 25 9290151 FELICETTI Mirko ITA 1992 35.17\n" +
+    "48 9320129 CHO Wanhee KOR 1998 DNF 17 9510316 CAVIEZEL Dario SUI 1995 DNF\n";
+  const rl2 = "Men's Parallel Giant Slalom\nRESULTS QUALIFICATION\n" +
+    "1 22 7538766 MARCH Aaron ITA 1986 34.10 1 35.58 12 1:09.68\n" +
+    "2 21 9320091 LEE Sangho KOR 1995 35.60 12 34.35 1 1:09.95\n" +
+    "31 25 9290151 FELICETTI Mirko ITA 1992 DNF 35.17 5 DNF\n" +
+    "33 46 9531244 WINTERS Cody USA 2000 35.96 22\n";
   const pruef = (t, ok) => { console.log((ok ? "OK   " : "FEHL ") + t); if (!ok) process.exitCode = 1; };
   const b1 = fp.parseStartlistePdf(sl1);
   pruef("Startliste: MARCH blau, LEE rot", b1["22"] === "blau" && b1["21"] === "rot");
