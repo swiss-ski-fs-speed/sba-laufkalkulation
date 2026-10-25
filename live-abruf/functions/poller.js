@@ -41,7 +41,7 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-10-25 sba-v4";
+const VERSION = "2026-10-25 sba-v5";
 
 // Renntage (ein Eintrag pro Quali-Tag, mit FIS-Codex der Quali-Rennen) aus
 // lib/kalender.js – gemeinsam mit dem PDF-Abruf (Ergänzung Michael/Claude).
@@ -51,8 +51,9 @@ const VERSION = "2026-10-25 sba-v4";
 const { RENNTAGE, findeQualiCodexe } = require("../lib/kalender.js");
 const SEASONCODE = "2027";
 const KALENDER = [
-  { ort: "Generalprobe Sölden (Ski Alpin)", disziplin: "TEST", start: "2026-10-24", end: "2026-10-25", test: true,
-    liveUrls: ["https://live.fis-ski.com/lv-al5001.htm", "https://live.fis-ski.com/lv-al0001.htm"] },
+  // Generalprobe-Vorlage (24./25.10.2026, erfolgreich, entfernt am 25.10.):
+  // { ort: "Generalprobe …", disziplin: "TEST", start: "JJJJ-MM-TT", end: "JJJJ-MM-TT", test: true,
+  //   liveUrls: ["https://live.fis-ski.com/lv-al5001.htm"] },
   ...RENNTAGE.map(r => ({ ...r, start: r.datum, end: r.datum })),
 ];
 

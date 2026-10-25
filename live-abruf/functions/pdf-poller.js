@@ -32,9 +32,9 @@ const PDF_VERSION = "2026-10-25 pdf-v3";   // neue Version -> PDF-Test läuft er
 const UA = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 sba-laufkalkulation (read-only)" };
 
 const KALENDER = [
-  // PDF-Testlauf mit echten Daten: Cortina 13.12.2025 (Event 57890, Saison 2026)
-  { ort: "PDF-Test Cortina 2025", disziplin: "TEST", start: "2026-10-25", end: "2026-10-28", test: true,
-    pdfTest: { eventid: "57890", season: "2026", datum: "2025-12-13" } },
+  // PDF-Test-Vorlage (Cortina 13.12.2025, erfolgreich am 25.10.2026, danach entfernt):
+  // { ort: "PDF-Test", disziplin: "TEST", start: "JJJJ-MM-TT", end: "JJJJ-MM-TT", test: true,
+  //   pdfTest: { eventid: "57890", season: "2026", datum: "2025-12-13" } },
   ...RENNTAGE.map(r => ({ ...r, start: r.datum, end: r.datum })),
 ];
 

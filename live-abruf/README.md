@@ -1,118 +1,95 @@
-# SBA Live-Abruf – FIS-Daten → Firebase
+# SBA Live-Abruf – FIS-Daten → App
 
-Zwei kleine Hintergrund-Dienste (Netlify Scheduled Functions), beide nur an
-Weltcup-Renntagen aktiv (Kalender in den Funktionen; sonst beenden sie sich
-sofort):
+Stand: 25.10.2026. Zwei Hintergrund-Dienste auf Netlify (Site `sba-live-abruf`),
+die an Weltcup-Renntagen die Quali-Zeiten von der FIS holen und in die
+Firebase der SBA Laufkalkulation schreiben. Ausserhalb der Renntage beenden
+sie sich sofort. **Status: scharf** (seit 25.10.2026, `DRY_RUN` entfernt).
 
-- **`poller`** (jede Minute): holt die FIS-**Live**-Resultate während des
-  Laufs und schreibt die Zeiten in die Firebase der SBA Laufkalkulation.
-- **`pdf-poller`** (alle 5 Minuten): holt die **offiziellen Quali-PDFs**
-  (Startlisten mit Kurszuteilung, Resultatlisten Run 1/2), die die FIS kurz
-  nach jedem Lauf publiziert – als robuste zweite Quelle, falls ein
-  Veranstalter keine Live-Quali einspeist. Zeiten kommen hier jeweils kurz
-  nach Laufende.
+| Dienst | Takt | Quelle | Rolle |
+|---|---|---|---|
+| `poller` | 1 Min. | FIS-Live-Datenfeed | Hauptquelle, live während der Läufe |
+| `pdf-poller` | 5 Min. | Offizielle FIS-PDFs (Startlisten, Resultate) | Kursliste für den Abgleich + Ersatzweg, Zeiten kurz nach Laufende |
+| `testlog` | auf Abruf | – | Journal lesen (ohne Netlify-Login) |
 
-Beide schreiben als «automatisches Command Center» in dieselbe App.
+## Ablauf am Renntag (vollautomatisch)
 
-**Sicherheitsnetz (beide Dienste):** Es werden nur Events angefasst, die die
-Automatik selbst angelegt hat (`auto: true`). Manuell im Command Center
-erfasste Events werden nie verändert – die manuelle Erfassung bleibt als
-Fallback voll funktionsfähig. Bestehende Kurslisten werden nie mit «leer»
-überschrieben. `DRY_RUN=1` = nur loggen, nichts schreiben.
+1. **Kalender** (`lib/kalender.js`): ein Eintrag pro Quali-Tag mit den
+   FIS-Codex-Nummern der Quali-Rennen (Frauen/Männer). Mehrtägige Weltcups
+   (Mylin, Bansko, Krynica) = ein Eintrag pro Tag = ein App-Event
+   (`auto-<datum>`). Fehlt ein Codex, wird er auf der FIS-Event-Seite gesucht.
+2. **Live-Abruf** (`functions/poller.js`): Die Seite
+   `live.fis-ski.com/lv-sb<codex>.htm` ist nur eine Hülle; die Daten kommen
+   aus `<server>/sb<codex>/main.xml` (Serverliste
+   `live.fis-ski.com/general/serverListFull.xml`), PHP-serialisiert. Der
+   Decoder ist tolerant gegenüber gemischter Kodierung und falschen
+   Längenangaben (Sölden 24.10.2026). Gesamtzeiten im 2. Lauf (mit oder ohne
+   «:c»-Markierung) werden in Laufzeiten umgerechnet. Kursfarbe: Startlisten-
+   Feld Index 4 («blue»/«red», laut FIS-Live-App, Disziplin «PAQ»).
+3. **PDF-Abruf** (`functions/pdf-poller.js`, `lib/fis-pdf.js`): Event-Seite →
+   Quali-Rennen (raceid) → Resultat-Seite → PDFs nach Beschriftung
+   («Start List - Qualification Run 1» …). Text wird zeilenweise nach
+   Position gelesen (eigene `pagerender`). Startlisten und Resultate Lauf 1
+   zweispaltig (links Blau, rechts Rot), Resultate Lauf 2 = Gesamttabelle.
+   Legt die offizielle Kurszuteilung als `startliste-<codex>` im Journal ab.
+4. **Kurs-Abgleich**: Der Live-Abruf schreibt pro Rennen und Lauf nur, wenn
+   ≥ 3 Startnummern mit der offiziellen Startliste verglichen werden konnten
+   und keine abweicht. Sonst: «wartet auf Startliste» bzw. «GESPERRT» (Log).
+   Folge: Erste Q2-Zeiten kommen bis ca. 5 Min. verzögert (Startliste Q2
+   erscheint erst nach Lauf 1). Notfall-Schalter: `KURS_ABGLEICH=0`.
+5. **Schreiben**: nur ins eigene Auto-Event (`auto: true`, manuell angelegte
+   Events nie), nie mit «leer» überschreiben, nur bei neuen Zeiten. Pro Kurs
+   und Geschlecht die besten 8 Zeiten (die App rechnet Frauen Top 5, Männer Top 8).
 
-## Vorab-Test – jederzeit möglich, ohne auf ein Rennen zu warten
+## Verifiziert
 
-Die ganze Kette (Zeitplan → Abruf → Parser → Firebase-Login → Schreiben →
-Anzeige in der App) lässt sich sofort mit den mitgelieferten Mock-Daten
-testen. Einziger Teil, der sich erst am echten Rennen prüfen lässt, ist das
-exakte Datenformat der FIS-Live-Seite.
+- Live-Feed: Generalprobe Sölden 24./25.10.2026 (Ski Alpin, Damen/Herren-RS),
+  Zeiten beider Läufe auf die Hundertstel identisch mit FIS-Resultaten.
+- PDFs: Cortina 13.12.2025 auf Netlify gelesen – Frauen Q1 49 / Q2 32,
+  Männer Q1 60 / Q2 30, alle mit Kurs, Q1+Q2 = Total.
+- Login mit `CC_PASSWORD`: OK (25.10.2026).
+- **Noch offen bis Snow Ruyi (28.11.):** Adressmuster `lv-sb<codex>` und
+  Kursfeld im Snowboard-Feed (aus dem Code der FIS-App abgeleitet, durch den
+  Kurs-Abgleich abgesichert).
 
-1. Site deployen (siehe unten), Umgebungsvariablen setzen:
-   - `CC_PASSWORD` = Command-Center-Passwort
-   - `LIVE_URL` = `https://DEINE-SITE.netlify.app/mock-live.json`
-   - `FORCE` = `1` (Renntag-Check übergehen)
-   - `DRY_RUN` **nicht** setzen
-2. Warten (max. 1 Minute) – der Poller liest die Mock-Daten und schreibt sie
-   in die Firebase. In der App erscheint ein Event **«TEST»** mit vollständigen
-   Q1/Q2-Zeiten für Frauen und Männer – inkl. Kernaussage-Banner, Paarvergleich
-   und Live-Aktualisierung bei den Coaches.
-3. Aufräumen: `FORCE` und `LIVE_URL` wieder entfernen, `DRY_RUN=1` setzen,
-   und das TEST-Event im Command Center löschen (Menü ⋮ → Event löschen).
+## Journal (ohne Netlify-Login)
 
-Zusätzlich sinnvoll, **vor** dem Saisonstart:
+`https://sba-live-abruf.netlify.app/.netlify/functions/testlog`
 
-- **PDF-Pfad mit echten Daten der letzten Saison testen:** In Netlify
-  `TEST_RACE=2026:6169` (= Cortina-Quali vom 13.12.2025), `FORCE=1` und
-  `DRY_RUN=1` setzen. Der `pdf-poller` probiert dann die FIS-PDF-Adressen
-  dieses Rennens durch und loggt gefundene Dokumente, erkannte Kurszuteilungen
-  und Zeiten – echte FIS-PDFs, heute testbar. Anhand der Logs wird der
-  Parser einmalig geschärft. Danach `TEST_RACE` wieder entfernen.
-- **Live-Quellen findet der Dienst selbst (seit 25.10.2026):** In
-  `lib/kalender.js` steht pro Quali-Tag der FIS-Codex der Quali-Rennen
-  (Frauen/Männer). Am Renntag liest der `poller` daraus
-  `live.fis-ski.com/lv-sb<codex>.htm` bzw. den Datenfeed `sb<codex>/main.xml`.
-  Fehlt ein Codex, sucht er ihn auf der FIS-Event-Seite. `LIVE_URL` braucht
-  es nur noch für Sonderfälle. Mehrtägige Weltcups (Mylin, Bansko, Krynica)
-  haben pro Tag ein eigenes Rennen und damit ein eigenes App-Event – in der
-  App einmal «Saisonkalender abgleichen» ausführen.
-- **Generalprobe Sölden (24./25. Okt. 2026) – läuft automatisch:** Im
-  Kalender von `poller.js` steht ein Eintrag mit `test: true` für die beiden
-  Ski-Alpin-Rennen (Damen-RS Codex 5001, Herren-RS Codex 0001). An diesen
-  Tagen liest der `poller` ohne weitere Einstellungen jede Minute den echten
-  Datenfeed (`<server>/<codex>/main.xml`, siehe Kommentar in `poller.js`) und
-  schreibt **nie** in die App (Trockenlauf). Ergebnisse landen im Journal
-  (Netlify Blobs) und sind ohne Netlify-Login lesbar:
+| Parameter | Inhalt |
+|---|---|
+| – | Version, Status pro Feed, letzte 300 Meldungen (inkl. «Kurs-Abgleich: …»), Login-Check, PDF-Test |
+| `?raw=sb6004-max` / `?raw=sb6004-letzter` | Roh-Feed eines Rennens (meiste Zeiten / letzter Stand) |
+| `?pdf=2026-11-28` | Letzter Stand des PDF-Abrufs an diesem Renntag |
+| `?selbsttest=1` | Prüft den Speicher |
 
-  | Adresse (unter `https://sba-live-abruf.netlify.app`) | Inhalt |
-  |---|---|
-  | `/.netlify/functions/testlog` | Status, Zähler, Beispiele, Meldungen, Herzschlag |
-  | `/.netlify/functions/testlog?raw=al5001-max` | Roh-Feed mit den meisten Zeiten |
-  | `/.netlify/functions/testlog?selbsttest=1` | Prüft den Speicher |
+## Umgebungsvariablen (Netlify → Site configuration → Environment variables)
 
-  Ski Alpin hat keine Kurse Blau/Rot – erwartet sind Zielzeiten («al5001: N Zeiten») ohne
-  Kurszuteilung. Geprüft wird der Weg bis zu den dekodierten Zielzeiten.
-  Nach dem 25.10. ist der Eintrag wirkungslos. Offline-Test:
-  `node functions/poller.js --selftest-feed`.
+| Variable | Bedeutung |
+|---|---|
+| `CC_PASSWORD` | Passwort des Command-Center-Kontos (**geheim**, Pflicht) |
+| `DRY_RUN=1` | **Not-Aus**: liest weiter, schreibt nichts. Danach «Trigger deploy»! |
+| `KURS_ABGLEICH=0` | Kurs-Abgleich abschalten (nur im Notfall) |
+| `LIVE_URL` | Live-Quelle(n) von Hand, kommagetrennt (nur Sonderfälle) |
+| `FORCE=1` | Auch ausserhalb von Renntagen laufen (nur Tests) |
 
-## Einrichten (einmalig, ~10 Minuten)
+Geänderte Variablen gelten erst nach **Deploys → Trigger deploy → Deploy project**.
 
-1. In Netlify: **Add new site → Import from Git**, dieses Repository wählen,
-   als **Base directory** `live-abruf` angeben. (Die App selbst bleibt, wo sie
-   ist – das hier wird eine eigene kleine Site ohne Oberfläche.)
-2. Umgebungsvariablen setzen:
+## Tests (lokal, ohne Netz)
 
-   | Variable      | Wert                                                       |
-   |---------------|------------------------------------------------------------|
-   | `CC_PASSWORD` | Passwort des Command-Center-Kontos (**geheim**, Pflicht)   |
-   | `DRY_RUN`     | `1` – bis der Parser am ersten Rennen verifiziert ist      |
+```
+node functions/poller.js --selftest        # Zuordnung, manuelle Events unangetastet
+node functions/poller.js --selftest-feed   # Decoder mit echtem FIS-Feed (test/fixtures)
+node functions/pdf-poller.js --selftest-pdf  # PDF-Parser mit echten Cortina-Zeilen
+```
 
-   Optional: `CC_EMAIL`, `FB_API_KEY`, `FB_DB_URL` (Standard = Werte der App),
-   `LIVE_URL` (direkte Datenquelle, sobald bekannt), `FORCE=1` (Test ausserhalb
-   von Renntagen).
-3. Deployen. Fertig – der Dienst schläft, bis der erste Renntag kommt.
-
-## Verifikation am ersten Rennen (Snow Ruyi, 28./29. Nov 2026)
-
-Die genaue Struktur der FIS-Live-Seiten ist erst sichtbar, wenn ein Rennen
-wirklich live ist. Darum:
-
-1. `DRY_RUN=1` lassen. Am Renntag in Netlify → **Functions → poller → Logs**
-   schauen: Der Dienst loggt die gefundenen Live-Links, und – falls der Parser
-   die Struktur noch nicht erkennt – einen Ausschnitt der Antwort.
-2. Mit diesem Log-Ausschnitt passen wir `parseLive()` an (bzw. setzen
-   `LIVE_URL` direkt auf die Datenquelle). Der generische Parser erkennt
-   gängige JSON-Strukturen bereits von selbst.
-3. Wenn die geparsten Zeiten in den Logs stimmen: `DRY_RUN` entfernen –
-   ab dann schreibt der Dienst live in die App.
-
-**Wichtig:** Ob die Quali-Läufe live eingespiesen werden, hängt vom
-Timing-Anbieter des Veranstalters ab. An Rennen ohne Live-Quali bleibt die
-manuelle Erfassung im Command Center der Weg.
+Generalproben lassen sich ohne Netlify-Einstellungen fahren: Kalendereintrag
+mit `test: true` (Vorlagen als Kommentar in `poller.js` / `pdf-poller.js`) –
+schreibt nie in die App, Ergebnis im Journal.
 
 ## Betrieb
 
-- Kosten: praktisch keine (an Nicht-Renntagen beendet sich der Dienst sofort;
-  Netlify Free reicht locker).
-- Kalender fürs nächste Jahr: Liste `KALENDER` in `functions/poller.js`
-  aktualisieren (eine Zeile pro Event).
-- Not-Aus: In Netlify die Funktion deaktivieren oder `DRY_RUN=1` setzen.
+- Kosten: praktisch keine (Netlify Free).
+- Nächste Saison: `lib/kalender.js` neu befüllen (Codex der Quali-Rennen von
+  den FIS-Event-Seiten) und `SEASONCODE`/`SEASON` anpassen; in der App
+  `FIS_WC_2627` (index.html) nachführen und «Saisonkalender abgleichen».
+- Not-Aus: `DRY_RUN=1` + Trigger deploy (oder Functions deaktivieren).
