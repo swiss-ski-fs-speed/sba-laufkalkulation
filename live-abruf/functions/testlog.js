@@ -39,7 +39,9 @@ exports.handler = async (event) => {
     const status = await store.get("status", { type: "json" });
     const herzschlag = await store.get("herzschlag", { type: "json" });
     const pdfTest = await store.get("pdfTest", { type: "json" });
+    const loginCheck = await store.get("loginCheck", { type: "json" });
     return json(200, { version: VERSION, herzschlagPoller: herzschlag || "noch keiner",
+                       loginCheck: loginCheck || "noch nicht gelaufen",
                        pdfTest: pdfTest || "noch nicht gelaufen",
                        status: status || "noch keine Daten (Testlauf hat noch nicht begonnen)" });
   } catch (e) {

@@ -179,6 +179,13 @@ exports.handler = async (event) => {
       const blobs = require("@netlify/blobs");
       if (event && event.blobs) blobs.connectLambda(event);
       const store = blobs.getStore("testlauf");
+      // Einmalige Anmeldeprüfung mit CC_PASSWORD (meldet sich nur an, schreibt nichts)
+      if (!(await store.get("loginCheck", { type: "json" }))) {
+        let lc;
+        try { await fbLogin(); lc = { ok: true }; }
+        catch (e) { lc = { ok: false, fehler: FB.password ? String(e.message || e) : "CC_PASSWORD nicht gesetzt" }; }
+        await store.setJSON("loginCheck", { ...lc, zeit: new Date().toISOString() });
+      }
       const bisher = await store.get("pdfTest", { type: "json" });
       if (bisher && bisher.erfolg && bisher.version === PDF_VERSION) return ok("PDF-Test bereits erfolgreich – nichts zu tun.");
       let res;
