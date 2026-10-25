@@ -41,7 +41,7 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-10-25 sba-v3";
+const VERSION = "2026-10-25 sba-v4";
 
 // Renntage (ein Eintrag pro Quali-Tag, mit FIS-Codex der Quali-Rennen) aus
 // lib/kalender.js – gemeinsam mit dem PDF-Abruf (Ergänzung Michael/Claude).
@@ -446,6 +446,43 @@ function journalFeed(j, feed, e) {
 // ---------------------------------------------------------------------------
 exports.VERSION = VERSION;
 exports._test = { phpUnserialize, decodeFeed };   // für Tests
+// Kurs-Abgleich (Ergänzung Michael/Claude, 25.10.2026): Pro Quali-Rennen und
+// Lauf wird die Kursfarbe aus dem Live-Feed mit der offiziellen Startliste
+// verglichen (der PDF-Abruf legt sie als "startliste-<codex>" ab). Freigegeben
+// wird ein Rennen+Lauf nur, wenn mindestens 3 Startnummern verglichen werden
+// konnten und keine einzige abweicht. Sonst bleibt es draussen – lieber keine
+// Zeiten als falsche Kurse. Abschaltbar mit KURS_ABGLEICH=0.
+async function kursAbgleich(event, entries) {
+  let store = null;
+  try {
+    const blobs = require("@netlify/blobs");
+    if (event && event.blobs) blobs.connectLambda(event);
+    store = blobs.getStore("testlauf");
+  } catch (e) { return { ok: [], bericht: "Startlisten nicht lesbar (" + e.message + ")" }; }
+  const gruppen = new Map();
+  for (const e of entries) {
+    const k = e.codex + "|" + e.run;
+    if (!gruppen.has(k)) gruppen.set(k, []);
+    gruppen.get(k).push(e);
+  }
+  const ok = [], teile = [];
+  for (const [k, liste] of gruppen) {
+    const [codex, run] = k.split("|");
+    const sl = await store.get("startliste-" + codex, { type: "json" }).catch(() => null);
+    const zuteilung = (sl && sl[run]) || {};
+    let gleich = 0, anders = 0;
+    for (const e of liste) {
+      const soll = zuteilung[String(e.bib)];
+      if (!soll) continue;
+      if (soll === e.kurs) gleich++; else anders++;
+    }
+    const frei = gleich >= 3 && anders === 0;
+    teile.push(`${codex} ${run}: ${gleich} gleich, ${anders} abweichend -> ${frei ? "frei" : (anders ? "GESPERRT" : "wartet auf Startliste")}`);
+    if (frei) ok.push(...liste);
+  }
+  return { ok, bericht: teile.join(" | ") };
+}
+
 // Nur schreiben, wenn sich am eigenen Auto-Event etwas geändert hat
 // (Ergänzung Michael/Claude, 25.10.2026): weniger Schreibvorgänge, kein
 // unnötiges Überschreiben paralleler Command-Center-Änderungen.
@@ -507,7 +544,7 @@ exports.handler = async (event) => {
       }
       logFeed(feed);
       let e = [];
-      try { e = decodeFeed(feed.data); }
+      try { e = decodeFeed(feed.data); e.forEach(x => { x.codex = String(feed.codex || "").replace(/^[a-z]+/i, ""); }); }
       catch (err) { console.log("Decoder-Fehler:", err.message); if (journal) journal.log(`Decoder-Fehler ${feed.codex}: ${err.message}`); }
       console.log(`  Dekodiert: ${e.length} Zielzeiten, davon ${e.filter(x => x.kurs).length} mit Kurs.`, JSON.stringify(e.slice(0, 6)));
       journalFeed(journal, feed, e); feeds.push(feed);
@@ -533,7 +570,16 @@ exports.handler = async (event) => {
       }
     }
     if (!alle) return ok("Noch keine Zielzeiten.");
-    const entries = alle.filter(e => e.kurs && e.gender && e.run);
+    let entries = alle.filter(e => e.kurs && e.gender && e.run);
+    // Kurs-Abgleich mit der offiziellen Startliste (vom PDF-Abruf abgelegt):
+    // Geschrieben wird nur, was nachweislich zur Startliste passt.
+    if (process.env.KURS_ABGLEICH !== "0" && entries.length) {
+      const pruef = await kursAbgleich(event, entries);
+      if (journal) journal.log("Kurs-Abgleich: " + pruef.bericht);
+      console.log("Kurs-Abgleich:", pruef.bericht);
+      entries = pruef.ok;
+      if (!entries.length) return ok("Kurs-Abgleich: nichts freigegeben – " + pruef.bericht);
+    }
     if (!entries.length) return ok(`${alle.length} Zeiten gelesen, aber ohne Kurszuteilung – nichts zu schreiben.`);
     console.log(`Verwendbar: ${entries.length} Zeiten.`, JSON.stringify(entries.slice(0, 6)));
 

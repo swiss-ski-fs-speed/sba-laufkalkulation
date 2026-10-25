@@ -88,6 +88,7 @@ async function lesePdfs(eventid, season, datum) {
   const quali = rennen.length ? rennen : alleRennen;
   protokoll.push(`Event ${eventid}: ${quali.length} Quali-Rennen (${quali.map(r => r.codex + "/" + (r.gender || "?")).join(", ")})`);
   const entries = [];
+  const startlisten = {};   // Codex -> { q1: {bib: kurs}, q2: {...} } (für den Kurs-Abgleich des Live-Abrufs)
   for (const r of quali) {
     const seite = await holeText(`https://www.fis-ski.com/DB/general/results.html?sectorcode=SB&raceid=${r.raceid}`);
     const anh = fp.parseAnhaenge(seite);
@@ -106,8 +107,9 @@ async function lesePdfs(eventid, season, datum) {
     protokoll.push(`${r.codex} (${r.gender}): PDFs ${anh.map(a => a.art + "-" + a.run).join(" ")} | Startliste Q1 ${Object.keys(sl1).length}, Q2 ${Object.keys(sl2).length} | Q1 ${q1.length} Zeiten (blau ${z(q1, "blau")}/rot ${z(q1, "rot")}) | Q2 ${q2.length} (blau ${z(q2, "blau")}/rot ${z(q2, "rot")})`);
     if (!finde("resultat", "q1")) protokoll.push(`${r.codex}: noch keine Resultate Lauf 1`);
     entries.push(...q1, ...q2);
+    startlisten[r.codex] = { q1: sl1, q2: sl2 };
   }
-  return { entries, protokoll };
+  return { entries, protokoll, startlisten };
 }
 
 async function fbLogin() {
@@ -206,12 +208,16 @@ exports.handler = async (event) => {
     }
 
     if (!meta.eventid) return ok("Keine FIS-Event-ID im Kalender.");
-    const { entries, protokoll } = await lesePdfs(meta.eventid, SEASON, meta.start);
+    const { entries, protokoll, startlisten } = await lesePdfs(meta.eventid, SEASON, meta.start);
     protokoll.forEach(z => console.log(z));
     // Beobachtung für die Auswertung (Snow Ruyi): letzter Stand ins Journal
     try {
       const blobs = require("@netlify/blobs");
       if (event && event.blobs) blobs.connectLambda(event);
+      // Offizielle Kurszuteilung für den Kurs-Abgleich des Live-Abrufs ablegen
+      for (const [codex, sl] of Object.entries(startlisten || {}))
+        if (Object.keys(sl.q1).length || Object.keys(sl.q2).length)
+          await blobs.getStore("testlauf").setJSON("startliste-" + codex, { zeit: new Date().toISOString(), ...sl });
       await blobs.getStore("testlauf").setJSON("pdfLauf-" + meta.start, { zeit: new Date().toISOString(), zeiten: entries.length,
         mitKurs: entries.filter(e => e.kurs).length, protokoll, beispiele: entries.slice(0, 6) });
     } catch (e) { console.log("Journal nicht verfügbar:", e.message); }
