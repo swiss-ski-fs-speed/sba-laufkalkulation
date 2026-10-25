@@ -51,7 +51,21 @@ async function holePdfText(url) {
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.slice(0, 5).toString() !== "%PDF-") throw new Error("kein PDF");
   const pdfParse = require("pdf-parse");   // erst hier laden (Tests ohne Abhängigkeit)
-  return (await pdfParse(buf)).text;
+  // Eigene Seitenausgabe: Textstücke einer Zeile MIT Leerzeichen verbinden.
+  // Der Standard von pdf-parse klebt sie zusammen ("1227538766MARCH Aaron..."),
+  // dann sind Rang, Startnummer und FIS-Code nicht mehr trennbar (25.10.2026).
+  const pagerender = page => page.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
+    .then(tc => {
+      let lastY, text = "";
+      for (const item of tc.items) {
+        if (lastY === undefined) text += item.str;
+        else if (lastY == item.transform[5]) text += " " + item.str;
+        else text += "\n" + item.str;
+        lastY = item.transform[5];
+      }
+      return text;
+    });
+  return (await pdfParse(buf, { pagerender })).text;
 }
 
 /** Alle Quali-Daten eines Tages aus den FIS-PDFs. Liefert { entries, protokoll }. */
@@ -175,6 +189,13 @@ exports.handler = async (event) => {
     if (!meta.eventid) return ok("Keine FIS-Event-ID im Kalender.");
     const { entries, protokoll } = await lesePdfs(meta.eventid, SEASON, meta.start);
     protokoll.forEach(z => console.log(z));
+    // Beobachtung für die Auswertung (Snow Ruyi): letzter Stand ins Journal
+    try {
+      const blobs = require("@netlify/blobs");
+      if (event && event.blobs) blobs.connectLambda(event);
+      await blobs.getStore("testlauf").setJSON("pdfLauf-" + meta.start, { zeit: new Date().toISOString(), zeiten: entries.length,
+        mitKurs: entries.filter(e => e.kurs).length, protokoll, beispiele: entries.slice(0, 6) });
+    } catch (e) { console.log("Journal nicht verfügbar:", e.message); }
     const alle = entries.filter(e => e.kurs && e.gender);
     if (!alle.length) return ok("Noch keine verwertbaren PDF-Daten.");
     console.log(`Total verwertbar: ${alle.length} Zeiten.`, JSON.stringify(alle.slice(0, 6)));

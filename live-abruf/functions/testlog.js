@@ -26,6 +26,10 @@ exports.handler = async (event) => {
       const zurueck = await store.get("selbsttest");
       return json(200, { version: VERSION, speicher: zurueck === wert ? "OK" : "FEHLER", wert });
     }
+    if (q.pdf) {   // ?pdf=2026-11-28 -> PDF-Beobachtung eines Renntags
+      const v = await store.get("pdfLauf-" + String(q.pdf).replace(/[^0-9-]/g, ""), { type: "json" });
+      return json(v ? 200 : 404, v || { fehler: "keine PDF-Beobachtung für " + q.pdf });
+    }
     if (q.raw) {
       const key = "feed-" + String(q.raw).replace(/[^a-z0-9-]/gi, "");
       const t = await store.get(key);
