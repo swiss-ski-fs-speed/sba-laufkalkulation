@@ -41,7 +41,7 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-10-25 sba-v5";
+const VERSION = "2026-11-12 sba-v6";
 
 // Renntage (ein Eintrag pro Quali-Tag, mit FIS-Codex der Quali-Rennen) aus
 // lib/kalender.js – gemeinsam mit dem PDF-Abruf (Ergänzung Michael/Claude).
@@ -51,6 +51,10 @@ const VERSION = "2026-10-25 sba-v5";
 const { RENNTAGE, findeQualiCodexe } = require("../lib/kalender.js");
 const SEASONCODE = "2027";
 const KALENDER = [
+  // Generalprobe 2: Weltcup-Slalom Levi (Ski Alpin) – prüft die aktuelle Version am
+  // echten FIS-Feed, schreibt nie in die App. Frauen Sa 14.11. (5002), Männer So 15.11. (0002).
+  { ort: "Generalprobe Levi (Ski Alpin)", disziplin: "TEST", start: "2026-11-14", end: "2026-11-15", test: true,
+    liveUrls: ["https://live.fis-ski.com/lv-al5002.htm", "https://live.fis-ski.com/lv-al0002.htm"] },
   // Generalprobe-Vorlage (24./25.10.2026, erfolgreich, entfernt am 25.10.):
   // { ort: "Generalprobe …", disziplin: "TEST", start: "JJJJ-MM-TT", end: "JJJJ-MM-TT", test: true,
   //   liveUrls: ["https://live.fis-ski.com/lv-al5001.htm"] },
