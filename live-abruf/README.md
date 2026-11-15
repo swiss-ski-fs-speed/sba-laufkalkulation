@@ -34,8 +34,9 @@ sie sich sofort. **Status: scharf** (seit 25.10.2026, `DRY_RUN` entfernt).
 4. **Kurs-Abgleich**: Der Live-Abruf schreibt pro Rennen und Lauf nur, wenn
    ≥ 3 Startnummern mit der offiziellen Startliste verglichen werden konnten
    und keine abweicht. Sonst: «wartet auf Startliste» bzw. «GESPERRT» (Log).
-   Folge: Erste Q2-Zeiten kommen bis ca. 5 Min. verzögert (Startliste Q2
-   erscheint erst nach Lauf 1). Notfall-Schalter: `KURS_ABGLEICH=0`.
+   Für Q2 gilt, solange die Startliste Q2 fehlt, der Gegenkurs der Startliste
+   Q1 (alle wechseln im 2. Lauf den Kurs) – keine Wartezeit.
+   Notfall-Schalter: `KURS_ABGLEICH=0`.
 5. **Schreiben**: nur ins eigene Auto-Event (`auto: true`, manuell angelegte
    Events nie), nie mit «leer» überschreiben, nur bei neuen Zeiten. Pro Kurs
    und Geschlecht die besten 8 Zeiten (die App rechnet Frauen Top 5, Männer Top 8).

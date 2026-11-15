@@ -1,6 +1,6 @@
 # Renntag-Anleitung – SBA Laufkalkulation
 
-Für das Command Center am Wettkampftag. Stand 25.10.2026. Kein Technik-Wissen
+Für das Command Center am Wettkampftag. Stand 15.11.2026. Kein Technik-Wissen
 nötig. **Im Normalfall macht ihr gar nichts:** Die Automatik holt die
 Quali-Zeiten selbst von der FIS, die Coaches sehen sie live in der App.
 
@@ -19,7 +19,7 @@ Quali-Zeiten selbst von der FIS, die Coaches sehen sie live in der App.
 | Zeitpunkt | Normal |
 |---|---|
 | Q1 läuft | Zeiten kommen etwa im Minutentakt, Banner zeigt die Tendenz |
-| Beginn Q2 | Die ersten Q2-Zeiten kommen **bis ca. 5 Minuten verzögert** (die Automatik wartet auf die offizielle Startliste Q2), danach wieder im Minutentakt |
+| Q2 läuft | Zeiten kommen wie in Q1 etwa im Minutentakt |
 | Nach jedem Lauf | Zeiten vollständig |
 
 ## Kontrollblick (einmal pro Lauf genügt)
@@ -28,7 +28,7 @@ Nach etwa 10 Fahrer:innen die App öffnen:
 
 - **Zeiten kommen rein, Kurse plausibel?** → Alles gut, nichts tun.
 - **Q1: nach 10 Fahrer:innen noch keine Zeiten?** → Plan B.
-- **Q2: nach 10 Minuten noch keine Zeiten?** → Plan B.
+- **Q2: nach 10 Fahrer:innen noch keine Zeiten?** → Plan B.
 - **Zeiten offensichtlich falsch** (z.B. Athlet:in auf falschem Kurs)? → Plan B.
 
 ## Plan B: manuell übernehmen (jederzeit möglich)

@@ -41,7 +41,7 @@ const FB = {
 };
 
 // Code-Stand, sichtbar im Testlauf-Journal (Ergänzung Michael/Claude)
-const VERSION = "2026-11-12 sba-v6";
+const VERSION = "2026-11-15 sba-v7";
 
 // Renntage (ein Eintrag pro Quali-Tag, mit FIS-Codex der Quali-Rennen) aus
 // lib/kalender.js – gemeinsam mit dem PDF-Abruf (Ergänzung Michael/Claude).
@@ -474,7 +474,15 @@ async function kursAbgleich(event, entries) {
   for (const [k, liste] of gruppen) {
     const [codex, run] = k.split("|");
     const sl = await store.get("startliste-" + codex, { type: "json" }).catch(() => null);
-    const zuteilung = (sl && sl[run]) || {};
+    let zuteilung = (sl && sl[run]) || {};
+    let quelle = "Startliste " + run.toUpperCase();
+    // Q2 ohne zu warten (Ergänzung Michael/Claude, 15.11.2026): Jede:r wechselt im
+    // 2. Lauf den Kurs. Fehlt die offizielle Startliste Q2 noch, gilt der Gegenkurs
+    // der offiziellen Startliste Q1 – gleich sicher, ohne bis zu 5 Min. Verzögerung.
+    if (run === "q2" && !Object.keys(zuteilung).length && sl && sl.q1 && Object.keys(sl.q1).length) {
+      zuteilung = Object.fromEntries(Object.entries(sl.q1).map(([b, k]) => [b, k === "blau" ? "rot" : "blau"]));
+      quelle = "Gegenkurs aus Startliste Q1";
+    }
     let gleich = 0, anders = 0;
     for (const e of liste) {
       const soll = zuteilung[String(e.bib)];
@@ -482,7 +490,7 @@ async function kursAbgleich(event, entries) {
       if (soll === e.kurs) gleich++; else anders++;
     }
     const frei = gleich >= 3 && anders === 0;
-    teile.push(`${codex} ${run}: ${gleich} gleich, ${anders} abweichend -> ${frei ? "frei" : (anders ? "GESPERRT" : "wartet auf Startliste")}`);
+    teile.push(`${codex} ${run}: ${gleich} gleich, ${anders} abweichend (${quelle}) -> ${frei ? "frei" : (anders ? "GESPERRT" : "wartet auf Startliste")}`);
     if (frei) ok.push(...liste);
   }
   return { ok, bericht: teile.join(" | ") };
