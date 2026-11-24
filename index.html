@@ -894,11 +894,32 @@ function render() {
   const paired = renderPairedCard(ev, ui.gender);
   if (paired) c.appendChild(paired);
 }
+/* Reihenfolge der Rennauswahl (Ergänzung Michael/Claude, 24.11.2026):
+   zuoberst das aktuelle Rennen (heute oder gestern), dann die kommenden
+   (nächstes zuerst), am Schluss die vergangenen (jüngstes zuerst). */
+function eventGruppen() {
+  const today = new Date().toLocaleDateString("sv-SE");
+  const plus1 = d => new Date(new Date(d + "T12:00:00").getTime() + 86400000).toISOString().slice(0, 10);
+  const evs = state.events.filter(e => e && e.id);
+  const istAktuell = e => e.datum && e.datum <= today && today <= plus1(e.datum);
+  const nachDatum = (a, b) => (a.datum || "").localeCompare(b.datum || "");
+  return [
+    ["Aktuell", evs.filter(istAktuell).sort((a, b) => nachDatum(b, a))],
+    ["Kommende Rennen", evs.filter(e => !istAktuell(e) && (e.datum || "") > today).sort(nachDatum)],
+    ["Vergangene Rennen", evs.filter(e => !istAktuell(e) && (e.datum || "") <= today).sort((a, b) => nachDatum(b, a))],
+  ].filter(([, liste]) => liste.length);
+}
+function fuelleEventSelect(sel) {
+  for (const [titel, liste] of eventGruppen()) {
+    const grp = el("optgroup", { label: titel });
+    for (const ev of liste) grp.appendChild(el("option", { value: ev.id }, eventTitle(ev)));
+    sel.appendChild(grp);
+  }
+}
 function renderEventSelect() {
   const sel = $("#eventSelect");
   sel.innerHTML = "";
-  const sorted = state.events.slice().sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
-  for (const ev of sorted) sel.appendChild(el("option", { value: ev.id }, eventTitle(ev)));
+  fuelleEventSelect(sel);
   if (currentEvent()) sel.value = ui.currentEventId;
 }
 
@@ -1159,8 +1180,7 @@ function renderCoachPicker() {
   p.hidden = false;
   p.innerHTML = "";
   const sel = el("select", { class: "evpick-select", "aria-label": "Event wählen" });
-  const sorted = state.events.slice().sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
-  for (const ev of sorted) sel.appendChild(el("option", { value: ev.id }, eventTitle(ev)));
+  fuelleEventSelect(sel);
   if (currentEvent()) sel.value = ui.currentEventId;
   sel.addEventListener("change", () => { ui.currentEventId = sel.value; ui.runId = "q1"; NUTZUNG.klick("rennen"); render(); });
   p.appendChild(sel);
