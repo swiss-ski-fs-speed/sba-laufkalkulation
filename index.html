@@ -592,9 +592,13 @@ async function initFirebase() {
       dbEmpty = false;
       if (dirty || pushing) { updateStatus(); return; }   // eigene Änderung ist unterwegs
       state = normalizeState(data);
-      if (!currentEvent()) {
+      // Vorauswahl neu bestimmen, solange niemand selbst ein Rennen gewählt hat
+      // (Ergänzung 24.11.2026): Beim Start kennt die App nur die eingebetteten
+      // Archiv-Rennen; die kommenden Rennen kommen erst hier aus der Datenbank.
+      if (!currentEvent() || !ui.eventGewaehlt) {
+        const vorher = ui.currentEventId;
         ui.currentEventId = defaultEventId();
-        ui.runId = "q1";
+        if (ui.currentEventId !== vorher) ui.runId = "q1";
       }
       const ae = document.activeElement;
       const typing = ui.role === "cc" && ae && ae.tagName === "INPUT" && ae.id !== "eventSelect";
@@ -1185,7 +1189,7 @@ function renderCoachPicker() {
   const sel = el("select", { class: "evpick-select", "aria-label": "Event wählen" });
   fuelleEventSelect(sel);
   if (currentEvent()) sel.value = ui.currentEventId;
-  sel.addEventListener("change", () => { ui.currentEventId = sel.value; ui.runId = "q1"; NUTZUNG.klick("rennen"); render(); });
+  sel.addEventListener("change", () => { ui.currentEventId = sel.value; ui.eventGewaehlt = true; ui.runId = "q1"; NUTZUNG.klick("rennen"); render(); });
   p.appendChild(sel);
   p.appendChild(el("span", { html: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted);pointer-events:none"><path d="M6 9l6 6 6-6"/></svg>' }));
 }
@@ -1371,7 +1375,7 @@ function openEventForm(ev) {
         if (ev) { ev.ort = ort; ev.datum = fDat.value; ev.disziplin = fDis.value; }
         else {
           const ne = newEvent(ort, fDis.value, fDat.value || new Date().toISOString().slice(0, 10));
-          state.events.push(ne); ui.currentEventId = ne.id; ui.runId = "q1";
+          state.events.push(ne); ui.currentEventId = ne.id; ui.eventGewaehlt = true; ui.runId = "q1";
         }
         persist(); closeOverlays(); render();
       },
@@ -1383,7 +1387,7 @@ function duplicateEvent() {
   const ev = currentEvent(); if (!ev) return;
   const copy = JSON.parse(JSON.stringify(ev));
   copy.id = uid("ev"); copy.ort = ev.ort + " (Kopie)";
-  state.events.push(copy); ui.currentEventId = copy.id;
+  state.events.push(copy); ui.currentEventId = copy.id; ui.eventGewaehlt = true;
   persist(); render(); toast("Event dupliziert.");
 }
 function confirmDeleteEvent() {
@@ -1744,7 +1748,7 @@ $("#peekBtn").addEventListener("click", () => {
   f.type = f.type === "password" ? "text" : "password";
   f.focus();
 });
-$("#eventSelect").addEventListener("change", e => { ui.currentEventId = e.target.value; ui.runId = "q1"; render(); });
+$("#eventSelect").addEventListener("change", e => { ui.currentEventId = e.target.value; ui.eventGewaehlt = true; ui.runId = "q1"; render(); });
 $("#genderSeg").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   ui.gender = b.dataset.g; NUTZUNG.klick("ansicht-" + ui.gender); render();
