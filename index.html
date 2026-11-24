@@ -793,19 +793,22 @@ function newEvent(ort, disziplin, datum) {
   return { id: uid("ev"), ort, disziplin, datum, runs: [emptyRun("q1", "Q1"), emptyRun("q2", "Q2")] };
 }
 function currentEvent() { return state.events.find(e => e.id === ui.currentEventId) || null; }
-/* Standard-Auswahl (Ergänzung Michael/Claude): heutiges Event (inkl. 2. Renntag),
-   sonst das zuletzt gefahrene, sonst das nächste kommende — statt stur des
-   letzten der Saison. Wichtig, sobald die ganze Saison vorerfasst ist. */
+/* Standard-Auswahl (Ergänzung Michael/Claude): heutiges Event (inkl. Folgetag),
+   sonst das nächste kommende, erst nach Saisonende das zuletzt gefahrene. */
 function defaultEventId() {
   const sorted = state.events.slice().filter(e => e && e.id).sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
   if (!sorted.length) return null;
   const today = new Date().toLocaleDateString("sv-SE");
-  const current = sorted.find(e => {
+  const current = sorted.filter(e => {
     if (!e.datum) return false;
     const end = new Date(new Date(e.datum + "T12:00:00").getTime() + 86400000).toISOString().slice(0, 10);
     return e.datum <= today && today <= end;
-  });
+  }).pop();   // bei zwei Renntagen hintereinander das jüngere
   if (current) return current.id;
+  // Kein Rennen heute/gestern: das nächste kommende Rennen (Ergänzung 24.11.2026),
+  // erst wenn keines mehr ansteht, das zuletzt gefahrene.
+  const next = sorted.find(e => (e.datum || "") > today);
+  if (next) return next.id;
   const past = sorted.filter(e => (e.datum || "") <= today);
   return past.length ? past[past.length - 1].id : sorted[0].id;
 }
