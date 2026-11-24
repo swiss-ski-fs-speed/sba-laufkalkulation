@@ -10,6 +10,7 @@ sie sich sofort. **Status: scharf** (seit 25.10.2026, `DRY_RUN` entfernt).
 | `poller` | 1 Min. | FIS-Live-Datenfeed | Hauptquelle, live während der Läufe |
 | `pdf-poller` | 5 Min. | Offizielle FIS-PDFs (Startlisten, Resultate) | Kursliste für den Abgleich + Ersatzweg, Zeiten kurz nach Laufende |
 | `testlog` | auf Abruf | – | Journal lesen (ohne Netlify-Login) |
+| `stats` | auf Abruf | App (Coach-Geräte) | Nutzungsstatistik: nimmt anonyme Nutzungsdaten an, liefert sie nur ans Command Center |
 
 ## Ablauf am Renntag (vollautomatisch)
 
@@ -62,6 +63,20 @@ sie sich sofort. **Status: scharf** (seit 25.10.2026, `DRY_RUN` entfernt).
 | `?raw=sb6004-max` / `?raw=sb6004-letzter` | Roh-Feed eines Rennens (meiste Zeiten / letzter Stand) |
 | `?pdf=2026-11-28` | Letzter Stand des PDF-Abrufs an diesem Renntag |
 | `?selbsttest=1` | Prüft den Speicher |
+
+## Nutzungsstatistik (seit 17.11.2026)
+
+- Die App (`index.html`, Abschnitt «Nutzungsstatistik») erfasst nur auf
+  Geräten mit Coach-Anmeldung: Aufrufe, Sichtzeit pro Ansicht
+  (Frauen/Männer/Übersicht) und pro Karte (Q1, Q2, Paarvergleich, Übersicht,
+  alle 5 s gemessen), Klicks, technische Fehler. Anonyme Geräte-ID im
+  Browser, keine Namen, keine IP. Versand alle 2 Min. und beim Verlassen.
+- Nie gezählt: Geräte, auf denen je das Command Center angemeldet war, und
+  Geräte, die einmal `…/sba-laufkalkulation/?nocount` geöffnet haben.
+- Ablage: Netlify Blobs, Store `nutzung`. Abruf (`GET ?von=&bis=`) nur mit
+  Firebase-Token des Command-Center-Kontos.
+- Ansicht: in der App als Command Center → Menü → «Nutzungsstatistik»
+  (Zeitraum wählen, «Als PDF» druckt den Bericht).
 
 ## Umgebungsvariablen (Netlify → Site configuration → Environment variables)
 

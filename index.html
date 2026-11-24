@@ -328,6 +328,67 @@ table.ptab th{font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;colo
 table.ptab td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;color:var(--ink2)}
 table.ptab td:first-child{color:var(--ink);font-weight:650}
 table.ptab tr:last-child td{border-bottom:none}
+
+/* ================= NUTZUNGSSTATISTIK (Ergänzung Michael/Claude, 17.11.2026) ================= */
+:root{ --st-f:#c2185b; --st-m:#008c99; --st-n:#5b6676; --st-track:#eef0f4; }
+#statsPage{position:fixed;inset:0;z-index:150;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.st-bar{position:sticky;top:0;z-index:2;background:var(--bord);color:#fff;padding:calc(10px + var(--sat)) 14px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.st-bar h2{font-size:15px;font-weight:800;margin-right:auto}
+.st-bar select,.st-bar input{background:#fff;color:var(--ink);border:0;border-radius:8px;padding:7px 9px;font-size:13px;max-width:100%}
+.st-bar button{background:rgba(255,255,255,.16);color:#fff;border-radius:8px;padding:7px 11px;font-size:13px;font-weight:700}
+.st-doc{max-width:900px;margin:0 auto;padding:16px 16px 60px}
+.st-paper{background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:22px 22px 18px}
+.st-kicker{color:var(--red);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.st-title{font-size:24px;font-weight:800;line-height:1.15;margin:4px 0 2px}
+.st-sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.st-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:16px}
+.st-kpi{padding:12px 12px 12px 0}
+.st-kpi+.st-kpi{border-left:1px solid var(--line);padding-left:14px}
+.st-kpi .l{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2)}
+.st-kpi .v{white-space:nowrap;font-size:clamp(22px,3.4vw,30px);font-weight:800;color:var(--red);line-height:1.1;margin:2px 0;font-variant-numeric:tabular-nums}
+.st-kpi .v.good{color:var(--good)}
+.st-kpi .s{font-size:12px;color:var(--muted)}
+.st-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 26px}
+.st-sec{margin-top:14px}
+.st-sec h3{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-bottom:1.5px solid var(--ink);padding-bottom:5px;margin:6px 0 8px;display:flex;gap:8px;align-items:baseline}
+.st-sec h3 .r{margin-left:auto;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;font-size:11px}
+.st-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.st-tbl td,.st-tbl th{padding:6px 0;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.st-tbl td:first-child,.st-tbl th:first-child{text-align:left;color:var(--ink2)}
+.st-tbl th{font-size:11.5px;color:var(--muted);font-weight:600}
+.st-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0}
+.st-hbar{display:grid;grid-template-columns:minmax(90px,38%) 1fr 76px;gap:8px;align-items:center;font-size:13px;margin:5px 0}
+.st-hbar .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-hbar .tr{height:8px;background:var(--st-track);border-radius:4px;overflow:hidden}
+.st-hbar .fl{height:100%;border-radius:4px;background:var(--st-n)}
+.st-hbar .vl{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.st-day{margin:6px 0 12px}
+.st-day .dh{font-size:12.5px;font-weight:700;margin-bottom:4px}
+.st-day .dh span{font-weight:400;color:var(--muted)}
+.st-cols{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;align-items:end;height:74px;border-bottom:1px solid var(--line)}
+.st-col{position:relative;height:100%;display:flex;flex-direction:column;justify-content:flex-end}
+.st-col i{display:block;background:var(--st-n);border-radius:3px 3px 0 0;min-height:0}
+.st-col b{position:absolute;left:0;right:0;text-align:center;font-size:10px;font-weight:700;color:var(--ink2)}
+.st-axis{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;font-size:9.5px;color:var(--muted);text-align:center;margin-top:2px}
+.st-seg{display:flex;gap:2px;height:30px;border-radius:6px;overflow:hidden;font-size:12px;font-weight:700}
+.st-seg div{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;color:#fff;padding:0 6px}
+.st-note{font-size:12.5px;color:var(--ink2);margin-top:6px}
+.st-keys{list-style:none;padding:0;margin:0}
+.st-keys li{position:relative;padding-left:16px;margin:0 0 8px;font-size:13px;line-height:1.4}
+.st-keys li::before{content:"";position:absolute;left:0;top:6px;width:8px;height:8px;border-radius:50%;background:var(--red)}
+.st-foot{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.st-empty{padding:40px 10px;text-align:center;color:var(--muted)}
+@media(max-width:640px){.st-kpis{grid-template-columns:1fr 1fr}.st-kpi:nth-child(3){border-left:0;padding-left:0}.st-grid{grid-template-columns:1fr}.st-paper{padding:16px}}
+@media print{
+  @page{size:A4;margin:12mm}
+  body{background:#fff}
+  #app,#login,.overlay,.toast,.st-bar{display:none!important}
+  #statsPage{position:static;overflow:visible;background:#fff}
+  .st-doc{padding:0;max-width:none}
+  .st-paper{box-shadow:none;border-radius:0;padding:0}
+  .st-sec,.st-day{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 </head>
 <body>
@@ -362,7 +423,7 @@ table.ptab tr:last-child td{border-bottom:none}
       <button type="submit" class="login-btn">Anmelden</button>
     </form>
     <div class="lerr" id="loginErr"></div>
-    <div class="lhint">Command Center bearbeitet die Events.<br>Coaches sehen alle Resultate live.</div>
+    <div class="lhint">Command Center bearbeitet die Events.<br>Coaches sehen alle Resultate live.<br><span style="opacity:.8">Die Nutzung der Coach-Ansicht wird anonym statistisch erfasst.</span></div>
   </div>
 </div>
 
@@ -401,6 +462,7 @@ table.ptab tr:last-child td{border-bottom:none}
 
 <div class="overlay" id="menuOverlay"><div class="sheet" id="menuSheet"></div></div>
 <div class="overlay" id="eventOverlay"><div class="sheet" id="eventSheet"></div></div>
+<div id="statsPage" hidden></div>
 <div class="toast" id="toast"></div>
 
 <script type="application/json" id="appstate">{"v":1,"events":[{"id":"cortina-2025-12-13","ort":"Cortina","disziplin":"GS","datum":"2025-12-13","runs":[{"id":"q1","label":"Q1","frauen":{"blau":[{"name":"ZAMFIROVA","zeit":36.75},{"name":"PAYER","zeit":37.05},{"name":"CORATTI","zeit":37.24},{"name":"ZOGG","zeit":37.37},{"name":"DALMASSO","zeit":37.45}],"rot":[{"name":"MIKI","zeit":36.78},{"name":"MADEROVA","zeit":36.96},{"name":"MOISAN","zeit":36.99},{"name":"CAFFONT","zeit":37.49},{"name":"RIEGLER","zeit":37.58}]},"maenner":{"blau":[{"name":"MARCH","zeit":34.1},{"name":"BORMOLINI","zeit":34.45},{"name":"FISCHNALLER","zeit":34.49},{"name":"BAGOZZA","zeit":34.7},{"name":"KIM","zeit":34.77},{"name":"CORATTI","zeit":34.9},{"name":"MESSNER","zeit":35.16},{"name":"BAUMEISTER","zeit":35.35}],"rot":[{"name":"LEE","zeit":34.35},{"name":"PROMEGGER","zeit":34.58},{"name":"OBMANN","zeit":34.82},{"name":"KARL","zeit":35.12},{"name":"FELICETTI","zeit":35.17},{"name":"HELDMAN","zeit":35.33},{"name":"YANKOV","zeit":35.44},{"name":"HUBER","zeit":35.44}]}},{"id":"q2","label":"Q2","frauen":{"blau":[{"name":"CAFFONT","zeit":38.28},{"name":"MIKI","zeit":38.43},{"name":"RIEGLER","zeit":38.51},{"name":"KROL-WALAS","zeit":38.93},{"name":"MOISAN","zeit":39.05}],"rot":[{"name":"DALMASSO","zeit":38.66},{"name":"PAYER","zeit":38.94},{"name":"LOCH","zeit":39.0},{"name":"ZOGG","zeit":39.06},{"name":"BUCK","zeit":39.14}]},"maenner":{"blau":[{"name":"KARL","zeit":35.36},{"name":"LEE","zeit":35.6},{"name":"SHIBA","zeit":35.64},{"name":"BURGSTALLER","zeit":35.78},{"name":"PAYER","zeit":35.87},{"name":"SHINOHARA","zeit":36.0},{"name":"OBMANN","zeit":36.12},{"name":"GEORGIEV","zeit":36.26}],"rot":[{"name":"BAGOZZA","zeit":35.28},{"name":"AUNER","zeit":35.54},{"name":"MARCH","zeit":35.58},{"name":"BORMOLINI","zeit":35.58},{"name":"KIM","zeit":35.72},{"name":"KWIATKOWSKI","zeit":35.74},{"name":"BAUMEISTER","zeit":35.83},{"name":"FISCHNALLER","zeit":35.87}]}}]},{"id":"scuol-2026-01-10","ort":"Scuol","disziplin":"GS","datum":"2026-01-10","runs":[{"id":"q1","label":"Q1","frauen":{"blau":[{"name":"MIKI","zeit":43.84},{"name":"DALMASSO","zeit":44.54},{"name":"CAFFONT","zeit":45.28},{"name":"DEKKER","zeit":45.31},{"name":"PAYER","zeit":45.5}],"rot":[{"name":"HOFMEISTER","zeit":44.79},{"name":"KOTNIK","zeit":45.24},{"name":"LOCH","zeit":45.36},{"name":"HOCHREITER","zeit":45.97},{"name":"CORATTI","zeit":46.02}]},"maenner":{"blau":[{"name":"YANKOV","zeit":42.04},{"name":"FISCHNALLER","zeit":42.19},{"name":"MESSNER","zeit":42.56},{"name":"HUBER","zeit":42.68},{"name":"CAVIEZEL","zeit":42.8},{"name":"BURGSTALLER","zeit":43.0},{"name":"MARCH","zeit":43.09},{"name":"KOSIR","zeit":43.21}],"rot":[{"name":"FELICETTI","zeit":42.24},{"name":"PROMEGGER","zeit":42.53},{"name":"BAGOZZA","zeit":42.61},{"name":"MASTNAK","zeit":42.7},{"name":"HELDMAN","zeit":42.76},{"name":"AUNER","zeit":42.8},{"name":"LEE","zeit":42.84},{"name":"OBMANN","zeit":43.01}]}},{"id":"q2","label":"Q2","frauen":{"blau":[{"name":"ZOGG","zeit":46.87},{"name":"ZAMFIROVA","zeit":46.95},{"name":"HOFMEISTER","zeit":47.09},{"name":"DANCHA","zeit":47.45},{"name":"HOCHREITER","zeit":47.71}],"rot":[{"name":"DEKKER","zeit":46.01},{"name":"MIKI","zeit":46.53},{"name":"CAFFONT","zeit":46.95},{"name":"KROL","zeit":47.13},{"name":"MOISAN","zeit":47.17}]},"maenner":{"blau":[{"name":"KIM","zeit":43.48},{"name":"RABANSER","zeit":43.49},{"name":"MATSNAK","zeit":43.58},{"name":"FELICETTI","zeit":43.67},{"name":"CASANOVA","zeit":43.91},{"name":"HELDMAN","zeit":43.97},{"name":"OBMANN","zeit":44.07},{"name":"BAGOZZA","zeit":44.25}],"rot":[{"name":"ZAMIROV","zeit":43.32},{"name":"YANKOV","zeit":43.33},{"name":"KARL","zeit":43.52},{"name":"PAYER","zeit":43.61},{"name":"KOSIR","zeit":43.69},{"name":"CAVIEZEL","zeit":43.81},{"name":"HUBER","zeit":43.98},{"name":"MARCH","zeit":44.03}]}}]},{"id":"bad-gastein-2026-01-13","ort":"Bad Gastein","disziplin":"SL","datum":"2026-01-13","runs":[{"id":"q1","label":"Q1","frauen":{"blau":[{"name":"ZOGG","zeit":30.43},{"name":"KOTNIK","zeit":30.46},{"name":"MIKI","zeit":30.7},{"name":"DANCHA","zeit":31.15},{"name":"BAETSCHI","zeit":31.45}],"rot":[{"name":"DEKKER","zeit":30.22},{"name":"KROL-WALAS","zeit":30.67},{"name":"DALMASSO","zeit":30.9},{"name":"MADEROVA","zeit":31.41},{"name":"PAYER","zeit":31.42}]},"maenner":{"blau":[{"name":"YANKOV","zeit":27.97},{"name":"BAUMEISTER","zeit":28.65},{"name":"BORMOLINI","zeit":28.68},{"name":"PROMEGGER","zeit":28.68},{"name":"WINTERS","zeit":28.69},{"name":"KARL","zeit":28.75},{"name":"CORATTI","zeit":29.14},{"name":"CAVIEZEL","zeit":29.22}],"rot":[{"name":"AUNER","zeit":28.5},{"name":"HELDMAN","zeit":28.58},{"name":"PAYER","zeit":28.69},{"name":"CASANOVA","zeit":28.72},{"name":"MESSNER","zeit":29.1},{"name":"ZAMFIROV","zeit":29.17},{"name":"MARCH","zeit":29.23},{"name":"KIM","zeit":29.24}]}},{"id":"q2","label":"Q2","frauen":{"blau":[{"name":"ZAMFIROVA","zeit":32.9},{"name":"DALMASSO","zeit":33.15},{"name":"KROL-WALAS","zeit":33.47},{"name":"DEKKER","zeit":33.48},{"name":"PFLUM","zeit":33.62}],"rot":[{"name":"HOFMEISTER","zeit":32.5},{"name":"CAFFONT","zeit":32.73},{"name":"ZOGG","zeit":33.3},{"name":"VALLE","zeit":33.83},{"name":"MIKI","zeit":33.93}]},"maenner":{"blau":[{"name":"KARNER","zeit":28.92},{"name":"BAGOZZA","zeit":29.06},{"name":"MESSNER","zeit":29.09},{"name":"OBMANN","zeit":29.17},{"name":"MARCH","zeit":29.23},{"name":"SHINOHARA","zeit":29.52},{"name":"PAYER","zeit":29.81},{"name":"KRASHNIAK","zeit":29.84}],"rot":[{"name":"GAUDET","zeit":29.13},{"name":"BAUMEISTER","zeit":29.35},{"name":"BORMOLINI","zeit":29.5},{"name":"PROMEGGER","zeit":29.71},{"name":"KARL","zeit":29.92},{"name":"TREFFLER","zeit":30.04},{"name":"CAVIEZEL","zeit":30.05},{"name":"BURGSTALLER","zeit":30.06}]}}]},{"id":"simonhöhe-2026-01-23","ort":"Simonhöhe","disziplin":"GS","datum":"2026-01-23","runs":[{"id":"q1","label":"Q1","frauen":{"blau":[{"name":"DALMASSO","zeit":31.94},{"name":"KROL-WALAS","zeit":32.35},{"name":"MADEROVA","zeit":32.47},{"name":"CORATTI","zeit":32.48},{"name":"HOFMEISTER","zeit":32.74}],"rot":[{"name":"MIKI","zeit":32.35},{"name":"DEKKER","zeit":32.35},{"name":"LEDECKA","zeit":32.48},{"name":"MOISAN","zeit":32.51},{"name":"ZOGG","zeit":32.76}]},"maenner":{"blau":[{"name":"LEE","zeit":30.63},{"name":"FISCHNALLER","zeit":30.64},{"name":"KIM","zeit":30.8},{"name":"KARL","zeit":31.02},{"name":"CORATTI","zeit":31.06},{"name":"MARGUC","zeit":31.08},{"name":"RABANSER","zeit":31.2},{"name":"CAVIEZEL","zeit":31.24}],"rot":[{"name":"OBMANN","zeit":30.69},{"name":"BORMOLINI","zeit":30.81},{"name":"HUBER","zeit":30.88},{"name":"BAUMEISTER","zeit":31.05},{"name":"PROMMEGGER","zeit":31.07},{"name":"MESSNER","zeit":31.25},{"name":"FELICETTI","zeit":31.26},{"name":"MASTNAK","zeit":31.37}]}},{"id":"q2","label":"Q2","frauen":{"blau":[{"name":"LEDECKA","zeit":32.48},{"name":"DEKKER","zeit":33.13},{"name":"MIKI","zeit":33.28},{"name":"MOISAN","zeit":33.73},{"name":"PFLUM","zeit":33.94},{"name":"CAFFONT","zeit":33.95},{"name":"ZOGG","zeit":34.05},{"name":"ANKELE","zeit":34.11}],"rot":[{"name":"DALMASSO","zeit":33.29},{"name":"KROL-WALAS","zeit":33.33},{"name":"MADEROVA","zeit":33.58},{"name":"CORATTI","zeit":33.68},{"name":"PAYER","zeit":34.09},{"name":"BAETSCHI","zeit":34.26},{"name":"HOFMEISTER","zeit":34.26},{"name":"BUCK","zeit":34.77}]},"maenner":{"blau":[{"name":"KARNER","zeit":31.18},{"name":"AUNER","zeit":31.23},{"name":"MASTNAK","zeit":31.29},{"name":"BORMOLINI","zeit":31.32},{"name":"OBMANN","zeit":31.42},{"name":"PROMMEGGER","zeit":31.55},{"name":"BAUMEISTER","zeit":31.58},{"name":"BAGOZZA","zeit":31.64}],"rot":[{"name":"BURGSTALLER","zeit":31.16},{"name":"KOSIR","zeit":31.23},{"name":"LEE","zeit":31.33},{"name":"RABANSER","zeit":31.36},{"name":"FISCHNALLER","zeit":31.36},{"name":"KARL","zeit":31.44},{"name":"YANKOV","zeit":31.53},{"name":"CORATTI","zeit":31.55}]}}]},{"id":"krynica-2026-02-28","ort":"Krynica","disziplin":"GS","datum":"2026-02-28","runs":[{"id":"q1","label":"Q1","frauen":{"blau":[{"name":"MADEROVA","zeit":33.7},{"name":"MIKI","zeit":33.82},{"name":"DALMASSO","zeit":34.62},{"name":"BUCK","zeit":35.07},{"name":"RIEGLER","zeit":35.33}],"rot":[{"name":"HOFMEISTER","zeit":33.91},{"name":"PAYER","zeit":34.06},{"name":"CAFFONT","zeit":34.15},{"name":"MOISAN","zeit":34.16},{"name":"KROL-WALAS","zeit":34.67}]},"maenner":{"blau":[{"name":"BORMOLINI","zeit":32.0},{"name":"OBMANN","zeit":32.5},{"name":"BAGOZZA","zeit":32.54},{"name":"FELICETTI","zeit":32.56},{"name":"KARL","zeit":32.64},{"name":"GAUDET","zeit":32.67},{"name":"YANKOV","zeit":32.83},{"name":"MASTNAK","zeit":32.84}],"rot":[{"name":"LEE","zeit":32.07},{"name":"KIM","zeit":32.32},{"name":"CORATTI","zeit":32.44},{"name":"PROMMEGG","zeit":32.44},{"name":"FISCHNALLER","zeit":32.46},{"name":"MARCH","zeit":32.61},{"name":"PAYER","zeit":32.61},{"name":"KOSIR","zeit":32.87}]}},{"id":"q2","label":"Q2","frauen":{"blau":[{"name":"MOISAN","zeit":35.64},{"name":"HOFMEISTER","zeit":35.88},{"name":"CAFFONT","zeit":36.13},{"name":"KROL-WALAS","zeit":36.35},{"name":"DEKKER","zeit":36.39}],"rot":[{"name":"MIKI","zeit":35.28},{"name":"BUCK","zeit":35.33},{"name":"MADEROVA","zeit":35.71},{"name":"DALMASSO","zeit":35.88},{"name":"CORATTI","zeit":36.41}]},"maenner":{"blau":[{"name":"LEE","zeit":33.43},{"name":"BAUMEISTER","zeit":33.47},{"name":"HELDMANN","zeit":33.54},{"name":"SHIBA","zeit":33.63},{"name":"HUBER","zeit":33.76},{"name":"FISCHNALLER","zeit":33.82},{"name":"MESSNER","zeit":33.88},{"name":"MARCH","zeit":34.04}],"rot":[{"name":"BORMOLINI","zeit":33.08},{"name":"SHINOHARA","zeit":33.14},{"name":"NOWACZYK","zeit":33.22},{"name":"CAVIEZEL","zeit":33.31},{"name":"MASTNAK","zeit":33.32},{"name":"RABANSER","zeit":33.52},{"name":"GAUDET","zeit":33.55},{"name":"ANGENEND","zeit":33.56}]}}]}],"updatedAt":null}</script>
@@ -512,6 +574,7 @@ async function initFirebase() {
       set: v => dbM.set(FB.stateRef, v),
       signIn: pw => authM.signInWithEmailAndPassword(auth, CC_EMAIL, pw),
       signOut: () => authM.signOut(auth),
+      idToken: () => auth.currentUser ? auth.currentUser.getIdToken() : Promise.reject(new Error("nicht angemeldet")),
     };
     dbM.onValue(dbM.ref(db, ".info/connected"), s => { connected = !!s.val(); updateStatus(); });
     authM.onAuthStateChanged(auth, user => { if (user && !ui.role) setRole("cc"); });
@@ -640,6 +703,7 @@ const ICONS = {
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg>',
   logout: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   send: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>',
 };
 
@@ -758,6 +822,8 @@ async function sha256hex(s) {
 }
 function setRole(role) {
   ui.role = role;
+  if (role === "cc") { try { localStorage.setItem(NOCOUNT_KEY, "1"); } catch (e) {} }   // Ergänzung: nie zählen
+  NUTZUNG.rolle(role);
   try {
     if (role === "coach" || (role === "cc" && (DEMO || !FB))) localStorage.setItem(ROLE_KEY, role);
     else localStorage.removeItem(ROLE_KEY);
@@ -1096,13 +1162,13 @@ function renderCoachPicker() {
   const sorted = state.events.slice().sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
   for (const ev of sorted) sel.appendChild(el("option", { value: ev.id }, eventTitle(ev)));
   if (currentEvent()) sel.value = ui.currentEventId;
-  sel.addEventListener("change", () => { ui.currentEventId = sel.value; ui.runId = "q1"; render(); });
+  sel.addEventListener("change", () => { ui.currentEventId = sel.value; ui.runId = "q1"; NUTZUNG.klick("rennen"); render(); });
   p.appendChild(sel);
   p.appendChild(el("span", { html: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--muted);pointer-events:none"><path d="M6 9l6 6 6-6"/></svg>' }));
 }
 function renderCoach(c, ev) {
   if (!ev) { c.appendChild(el("div", { class: "ccard" }, el("div", { class: "empty-hint" }, "Noch keine Events veröffentlicht."))); return; }
-  if (ui.gender === "summary") { c.appendChild(renderCoachSummary(ev)); return; }
+  if (ui.gender === "summary") { const sw = renderCoachSummary(ev); sw.setAttribute("data-card", "uebersicht"); c.appendChild(sw); return; }
   const sumRows = [];
   for (const run of ev.runs) {
     const res = computeRun(run, ui.gender);
@@ -1111,7 +1177,7 @@ function renderCoach(c, ev) {
     sumRows.push({ label: run.label, res });
   }
   const paired = renderPairedCard(ev, ui.gender);
-  if (paired) { paired.classList.add("ccard-style"); c.appendChild(paired); }
+  if (paired) { paired.classList.add("ccard-style"); paired.setAttribute("data-card", "paarvergleich"); c.appendChild(paired); }
   if (!c.children.length) {
     c.appendChild(el("div", { class: "ccard" }, el("div", { class: "empty-hint" }, "Für " + GENDER_LABEL[ui.gender] + " sind noch keine Zeiten erfasst.")));
   }
@@ -1136,7 +1202,7 @@ function bigVerdict(res) {
 }
 
 function renderCoachRunCard(run, res) {
-  const card = el("div", { class: "ccard" });
+  const card = el("div", { class: "ccard", "data-card": String(run.label || run.id).toLowerCase() });
   card.appendChild(el("div", { class: "runhead" }, el("h3", null, run.label + " · " + GENDER_LABEL[ui.gender])));
   card.appendChild(bigVerdict(res));
   const duo = el("div", { class: "duo" });
@@ -1230,6 +1296,7 @@ function openMenu() {
     s.appendChild(el("h3", { html: ICONS.edit + "Command Center" }));
     list.appendChild(mk(ICONS.plus, "Neues Event", () => openEventForm(null)));
     list.appendChild(mk(ICONS.plus, "Saisonkalender abgleichen", syncSeasonCalendar));
+    list.appendChild(mk(ICONS.chart, "Nutzungsstatistik", openStats));
     if (currentEvent()) {
       list.appendChild(mk(ICONS.edit, "Event bearbeiten", () => openEventForm(currentEvent())));
       list.appendChild(mk(ICONS.copy, "Event duplizieren", duplicateEvent));
@@ -1341,6 +1408,312 @@ function openRunSheet(run) {
   openOverlay("#eventOverlay");
 }
 
+/* ============================================================
+   Nutzungsstatistik (Ergänzung Michael/Claude, 17.11.2026)
+   Erfasst anonym, was Coaches in der App anschauen: Aufrufe, Sichtzeit pro
+   Ansicht (Frauen/Männer/Übersicht) und pro Karte (Q1, Q2, Paarvergleich,
+   Übersicht), Klicks und technische Fehler. Gezählt werden NUR Geräte mit
+   Coach-Anmeldung. Geräte, auf denen je das Command Center angemeldet war
+   (oder die einmal ?nocount geöffnet haben), zählen nie. Keine Namen, keine IP.
+   Ziel: Netlify-Funktion "stats" (Site sba-live-abruf), lesbar nur fürs CC.
+   ============================================================ */
+const NOCOUNT_KEY = "sba-nocount";
+const DEV_KEY = "sba-dev";
+const STATS_URL = "https://sba-live-abruf.netlify.app/.netlify/functions/stats";
+const NUTZUNG = (() => {
+  const TAKT = 5000, SENDEN_ALLE = 120000, NEUER_AUFRUF_NACH = 30 * 60 * 1000;
+  let aktiv = false, dev = null, mob = false, puffer = [], tickT = null, sendT = null, verborgenSeit = null;
+  const zaehler = new Map();
+  function nocount() {
+    try {
+      if (/[?&]nocount\b/.test(location.search)) localStorage.setItem(NOCOUNT_KEY, "1");
+      return localStorage.getItem(NOCOUNT_KEY) === "1";
+    } catch (e) { return true; }   // ohne Speicher keine stabile Geräte-ID -> nicht zählen
+  }
+  function geraet() {
+    try {
+      let d = localStorage.getItem(DEV_KEY);
+      if (!d) {
+        d = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 12)));
+        localStorage.setItem(DEV_KEY, d);
+      }
+      return d;
+    } catch (e) { return null; }
+  }
+  function push(e) { if (!aktiv) return; e.ts = Date.now(); puffer.push(e); if (puffer.length >= 150) senden(); }
+  function add(key, basis, ms) { const z = zaehler.get(key) || Object.assign({}, basis, { ms: 0 }); z.ms += ms; zaehler.set(key, z); }
+  function messen() {
+    if (!aktiv || document.visibilityState !== "visible" || ui.role !== "coach") return;
+    const ev = ui.currentEventId, g = ui.gender, h = window.innerHeight;
+    add("v|" + ev + "|" + g, { t: "view", ev, g }, TAKT);
+    for (const n of document.querySelectorAll("#content [data-card]")) {
+      const r = n.getBoundingClientRect();
+      if (r.height <= 0) continue;
+      const sicht = Math.max(0, Math.min(r.bottom, h) - Math.max(r.top, 0));
+      if (sicht >= Math.min(r.height, h) * 0.5)
+        add("c|" + ev + "|" + g + "|" + n.dataset.card, { t: "card", ev, g, card: n.dataset.card }, TAKT);
+    }
+  }
+  function senden() {
+    if (!aktiv) return;
+    for (const z of zaehler.values()) puffer.push(Object.assign({}, z, { ts: Date.now() }));
+    zaehler.clear();
+    if (!puffer.length) return;
+    const body = JSON.stringify({ v: 1, dev, mob, evs: puffer.splice(0) });
+    try {
+      const ok = navigator.sendBeacon && navigator.sendBeacon(STATS_URL, new Blob([body], { type: "text/plain" }));
+      if (!ok) fetch(STATS_URL, { method: "POST", body, keepalive: true, mode: "no-cors" }).catch(() => {});
+    } catch (e) { /* Statistik darf die App nie stören */ }
+  }
+  function rolle(r) {
+    const soll = r === "coach" && !DEMO && !nocount();
+    if (soll && !aktiv) {
+      dev = geraet();
+      if (!dev) return;
+      mob = (window.matchMedia && matchMedia("(pointer:coarse)").matches) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      aktiv = true;
+      push({ t: "open" });
+      tickT = setInterval(messen, TAKT);
+      sendT = setInterval(senden, SENDEN_ALLE);
+    } else if (!soll && aktiv) {
+      senden(); aktiv = false; clearInterval(tickT); clearInterval(sendT);
+    }
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!aktiv) return;
+    if (document.visibilityState === "hidden") { verborgenSeit = Date.now(); senden(); }
+    else { if (verborgenSeit && Date.now() - verborgenSeit > NEUER_AUFRUF_NACH) push({ t: "open" }); verborgenSeit = null; }
+  });
+  addEventListener("pagehide", senden);
+  addEventListener("error", e => push({ t: "err", msg: String(e.message || "Skriptfehler") }));
+  addEventListener("unhandledrejection", e => push({ t: "err", msg: String((e.reason && e.reason.message) || e.reason || "Promise-Fehler") }));
+  return {
+    rolle,
+    klick: what => push({ t: "click", what, ev: ui.currentEventId, g: ui.gender }),
+    fehler: msg => push({ t: "err", msg }),
+  };
+})();
+
+/* ---------- Statistik-Ansicht (nur Command Center) ---------- */
+const ST_ZONE = "Europe/Zurich";
+const stTag = ms => new Date(ms).toLocaleDateString("sv-SE", { timeZone: ST_ZONE });
+const stStunde = ms => Number(new Date(ms).toLocaleString("en-GB", { hour: "2-digit", hourCycle: "h23", timeZone: ST_ZONE }));
+const stPlus = (tag, n) => new Date(new Date(tag + "T12:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
+const stTagLabel = tag => new Date(tag + "T12:00:00Z").toLocaleDateString("de-CH", { weekday: "long", day: "2-digit", month: "2-digit", timeZone: "UTC" });
+function stDauer(ms) {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return s + " s";
+  const m = Math.round(s / 60);
+  if (m < 60) return m + " min";
+  return Math.floor(m / 60) + " h " + String(m % 60).padStart(2, "0") + " min";
+}
+const stPct = (a, b) => b ? Math.round(100 * a / b) : 0;
+const ST_ANSICHT = { frauen: "Frauen", maenner: "Männer", summary: "Übersicht" };
+const ST_KARTE = { q1: "Q1", q2: "Q2", paarvergleich: "Paarvergleich", uebersicht: "Übersicht" };
+const ST_KLICK = { "ansicht-frauen": "Wechsel zu Frauen", "ansicht-maenner": "Wechsel zu Männer", "ansicht-summary": "Wechsel zu Übersicht", rennen: "Anderes Rennen gewählt" };
+
+function statsVorgaben() {
+  const heute = stTag(Date.now());
+  const tage = [...new Set(state.events.filter(e => e && e.datum && e.datum <= heute).map(e => e.datum))].sort().reverse();
+  const out = [];
+  for (const t of tage.slice(0, 20)) {
+    const evs = state.events.filter(e => e.datum === t);
+    out.push({ label: evs.map(e => e.ort).filter((v, i, a) => a.indexOf(v) === i).join(" / ") + " · " + t.slice(8, 10) + "." + t.slice(5, 7) + ".", von: t, bis: stPlus(t, 1) < heute ? stPlus(t, 1) : heute });
+  }
+  out.push({ label: "Letzte 7 Tage", von: stPlus(heute, -6), bis: heute });
+  out.push({ label: "Saison 2026/27", von: "2026-11-01", bis: heute });
+  return out;
+}
+
+function openStats() {
+  const page = $("#statsPage");
+  page.innerHTML = "";
+  const vorgaben = statsVorgaben();
+  const sel = el("select", { "aria-label": "Zeitraum" });
+  vorgaben.forEach((v, i) => sel.appendChild(el("option", { value: String(i) }, v.label)));
+  sel.appendChild(el("option", { value: "frei" }, "Eigener Zeitraum …"));
+  const von = el("input", { type: "date", "aria-label": "von", value: vorgaben[0].von });
+  const bis = el("input", { type: "date", "aria-label": "bis", value: vorgaben[0].bis });
+  const doc = el("div", { class: "st-doc" });
+  const laden = () => ladeStats(doc, von.value, bis.value);
+  sel.addEventListener("change", () => {
+    const v = vorgaben[Number(sel.value)];
+    if (v) { von.value = v.von; bis.value = v.bis; laden(); }
+  });
+  von.addEventListener("change", () => { sel.value = "frei"; laden(); });
+  bis.addEventListener("change", () => { sel.value = "frei"; laden(); });
+  page.appendChild(el("div", { class: "st-bar" },
+    el("h2", null, "Nutzungsstatistik"), sel, von, bis,
+    el("button", { onclick: laden }, "Aktualisieren"),
+    el("button", { onclick: () => window.print() }, "Als PDF"),
+    el("button", { onclick: () => { page.hidden = true; page.innerHTML = ""; } }, "Schliessen")));
+  page.appendChild(doc);
+  page.hidden = false;
+  laden();
+}
+
+async function ladeStats(doc, von, bis) {
+  doc.innerHTML = "";
+  doc.appendChild(el("div", { class: "st-empty" }, "Lade Statistik …"));
+  if (!FB || !FB.idToken) { doc.innerHTML = ""; doc.appendChild(el("div", { class: "st-empty" }, "Statistik nur mit Firebase-Anmeldung (Command Center) verfügbar.")); return; }
+  try {
+    const token = await FB.idToken();
+    const res = await fetch(STATS_URL + "?von=" + encodeURIComponent(von) + "&bis=" + encodeURIComponent(bis), { headers: { Authorization: "Bearer " + token } });
+    if (!res.ok) throw new Error("Statistik-Dienst: HTTP " + res.status);
+    const data = await res.json();
+    doc.innerHTML = "";
+    doc.appendChild(statsBericht(data.events || [], von, bis));
+  } catch (e) {
+    doc.innerHTML = "";
+    doc.appendChild(el("div", { class: "st-empty" }, "Statistik konnte nicht geladen werden (" + e.message + ")."));
+  }
+}
+
+function stHbar(name, wert, max, text, farbe, titel) {
+  return el("div", { class: "st-hbar", title: titel || (name + ": " + text) },
+    el("div", { class: "nm" }, name),
+    el("div", { class: "tr" }, el("div", { class: "fl", style: "width:" + (max ? Math.max(2, 100 * wert / max) : 0) + "%" + (farbe ? ";background:" + farbe : "") })),
+    el("div", { class: "vl" }, text));
+}
+
+function statsAuswerten(E) {
+  const zeit = e => e.ts || e.rt;
+  const R = { geraete: new Set(), aufrufe: 0, aufrufeMob: 0, devMob: new Map(), sicht: 0, ansicht: {}, ansichtDev: {}, karte: {}, rennen: {}, klick: {}, fehler: [], proGeraet: new Map(), stunden: {} };
+  for (const e of E) {
+    R.geraete.add(e.dev); R.devMob.set(e.dev, !!e.mob);
+    if (e.t === "open") {
+      R.aufrufe++; if (e.mob) R.aufrufeMob++;
+      R.proGeraet.set(e.dev, (R.proGeraet.get(e.dev) || 0) + 1);
+      const t = stTag(zeit(e)), h = stStunde(zeit(e));
+      (R.stunden[t] = R.stunden[t] || new Array(24).fill(0))[h]++;
+    } else if (e.t === "view") {
+      R.sicht += e.ms || 0;
+      R.ansicht[e.g] = (R.ansicht[e.g] || 0) + (e.ms || 0);
+      (R.ansichtDev[e.g] = R.ansichtDev[e.g] || new Set()).add(e.dev);
+      R.rennen[e.ev] = (R.rennen[e.ev] || 0) + (e.ms || 0);
+    } else if (e.t === "card") {
+      const k = e.card === "uebersicht" ? "uebersicht" : e.card;
+      R.karte[k] = (R.karte[k] || 0) + (e.ms || 0);
+    } else if (e.t === "click") {
+      R.klick[e.what] = (R.klick[e.what] || 0) + 1;
+    } else if (e.t === "err") R.fehler.push(e.msg || "?");
+  }
+  return R;
+}
+
+function statsBericht(E, von, bis) {
+  const R = statsAuswerten(E);
+  const paper = el("div", { class: "st-paper" });
+  const zr = von === bis ? stTagLabel(von) : stTagLabel(von) + " – " + stTagLabel(bis);
+  const evTitel = id => {
+    const ev = state.events.find(x => x.id === id);
+    if (ev) return eventTitle(ev);
+    const m = /^auto-(\d{4})-(\d{2})-(\d{2})$/.exec(id || "");
+    return m ? "Rennen vom " + m[3] + "." + m[2] + "." + m[1] : (id || "–");
+  };
+  paper.appendChild(el("div", { class: "st-kicker" }, "SBA Laufkalkulation · Nutzungsstatistik Coach-Ansicht"));
+  paper.appendChild(el("div", { class: "st-title" }, (() => {
+    const evs = [...new Set(Object.keys(R.rennen))].sort((a, b) => R.rennen[b] - R.rennen[a]);
+    return evs.length ? evTitel(evs[0]) : "Keine Rennen angesehen";
+  })()));
+  paper.appendChild(el("div", { class: "st-sub" }, zr));
+  if (!E.length) {
+    paper.appendChild(el("div", { class: "st-empty" }, "Im gewählten Zeitraum gibt es keine Nutzung durch Coach-Geräte."));
+    paper.appendChild(el("div", { class: "st-foot" }, "Anonyme Nutzungsstatistik · nur Coach-Geräte, ohne Command Center und Testgeräte · Zeiten MEZ"));
+    return paper;
+  }
+  const nDev = R.geraete.size;
+  const mehrfach = [...R.proGeraet.values()].filter(n => n > 1).length;
+  const kpi = (l, v, s, good) => el("div", { class: "st-kpi" }, el("div", { class: "l" }, l), el("div", { class: "v" + (good ? " good" : "") }, String(v)), el("div", { class: "s" }, s));
+  paper.appendChild(el("div", { class: "st-kpis" },
+    kpi("Aufrufe", R.aufrufe, stPct(R.aufrufeMob, R.aufrufe) + " % vom Handy"),
+    kpi("Geräte", nDev, mehrfach + " davon mehrmals"),
+    kpi("Sichtzeit", stDauer(R.sicht), "Ø " + stDauer(R.aufrufe ? R.sicht / R.aufrufe : 0) + " pro Aufruf"),
+    kpi("Technische Fehler", R.fehler.length, R.fehler.length ? "Details unten" : "alles lief stabil", !R.fehler.length)));
+
+  const grid = el("div", { class: "st-grid" });
+  // Frauen vs Männer
+  const tbl = el("table", { class: "st-tbl" });
+  const kopf = el("tr", null, el("th", null, ""));
+  const spalten = [["frauen", "var(--st-f)"], ["maenner", "var(--st-m)"], ["summary", "var(--st-n)"]];
+  for (const [g, c] of spalten) kopf.appendChild(el("th", null, el("span", { class: "st-dot", style: "background:" + c }), ST_ANSICHT[g]));
+  tbl.appendChild(kopf);
+  const zeile = (label, f) => { const tr = el("tr", null, el("td", null, label)); for (const [g] of spalten) tr.appendChild(el("td", null, f(g))); tbl.appendChild(tr); };
+  zeile("Sichtzeit", g => stDauer(R.ansicht[g] || 0));
+  zeile("Anteil Sichtzeit", g => stPct(R.ansicht[g] || 0, R.sicht) + " %");
+  zeile("Geräte", g => String((R.ansichtDev[g] || new Set()).size));
+  zeile("Angetippt", g => String(R.klick["ansicht-" + g] || 0) + "×");
+  grid.appendChild(el("div", { class: "st-sec" }, el("h3", null, "Ansichten im Vergleich"), tbl));
+  // Karten
+  const karten = Object.entries(R.karte).sort((a, b) => b[1] - a[1]);
+  const kSum = karten.reduce((a, b) => a + b[1], 0), kMax = karten.length ? karten[0][1] : 0;
+  const kSec = el("div", { class: "st-sec" }, el("h3", null, "Worauf schauen die Coaches?", el("span", { class: "r" }, "Sichtzeit")));
+  for (const [k, ms] of karten) kSec.appendChild(stHbar(ST_KARTE[k] || k.toUpperCase(), ms, kMax, stPct(ms, kSum) + " %", null, (ST_KARTE[k] || k) + ": " + stDauer(ms)));
+  if (!karten.length) kSec.appendChild(el("div", { class: "st-note" }, "Keine Karten angesehen."));
+  grid.appendChild(kSec);
+  paper.appendChild(grid);
+
+  // Aufrufe pro Stunde
+  const sSec = el("div", { class: "st-sec" }, el("h3", null, "Aufrufe pro Stunde", el("span", { class: "r" }, "MEZ · alle Coach-Geräte")));
+  const tage = Object.keys(R.stunden).sort();
+  const sMax = Math.max(1, ...tage.flatMap(t => R.stunden[t]));
+  for (const t of tage) {
+    const reihe = R.stunden[t], summe = reihe.reduce((a, b) => a + b, 0);
+    const cols = el("div", { class: "st-cols" });
+    reihe.forEach((n, h) => {
+      const hoehe = n ? Math.max(4, 58 * n / sMax) : 0;
+      cols.appendChild(el("div", { class: "st-col", title: String(h).padStart(2, "0") + ":00–" + String(h).padStart(2, "0") + ":59 · " + n + " Aufrufe" },
+        n ? el("b", { style: "bottom:" + (hoehe + 2) + "px" }, String(n)) : null,
+        el("i", { style: "height:" + hoehe + "px" })));
+    });
+    const achse = el("div", { class: "st-axis" });
+    for (let h = 0; h < 24; h++) achse.appendChild(el("div", null, h % 3 === 0 ? String(h).padStart(2, "0") : ""));
+    sSec.appendChild(el("div", { class: "st-day" }, el("div", { class: "dh" }, stTagLabel(t) + " ", el("span", null, "· " + summe + " Aufrufe")), cols, achse));
+  }
+  paper.appendChild(sSec);
+
+  const grid2 = el("div", { class: "st-grid" });
+  // Wie oft öffnen
+  const anz = [...R.proGeraet.values()];
+  const g1 = anz.filter(n => n === 1).length, g2 = anz.filter(n => n >= 2 && n <= 4).length, g5 = anz.filter(n => n >= 5).length;
+  const tot = anz.length || 1;
+  const seg = el("div", { class: "st-seg" });
+  for (const [n, txt, bg, ink] of [[g1, "1×", "#dfe3ea", "var(--ink2)"], [g2, "2–4×", "#6b7785", "#fff"], [g5, "5× +", "var(--red)", "#fff"]])
+    if (n) seg.appendChild(el("div", { style: "flex:" + n + ";background:" + bg + ";color:" + ink, title: n + " Geräte · " + txt }, n + " · " + txt));
+  const kern = anz.slice().sort((a, b) => b - a), kernN = g5, kernAufrufe = kern.slice(0, kernN).reduce((a, b) => a + b, 0);
+  grid2.appendChild(el("div", { class: "st-sec" },
+    el("h3", null, "Wie oft öffnen die Coaches die App?", el("span", { class: "r" }, anz.length + " Geräte")), seg,
+    el("div", { class: "st-note" }, kernN ? "Ein harter Kern von " + kernN + " Geräten liefert " + stPct(kernAufrufe, R.aufrufe) + " % aller Aufrufe (" + kernAufrufe + " von " + R.aufrufe + ")." : "Kein Gerät hat die App fünfmal oder öfter geöffnet.")));
+  // Rennen
+  const rennen = Object.entries(R.rennen).sort((a, b) => b[1] - a[1]).slice(0, 6), rMax = rennen.length ? rennen[0][1] : 0;
+  const rSec = el("div", { class: "st-sec" }, el("h3", null, "Angesehene Rennen", el("span", { class: "r" }, "Sichtzeit")));
+  for (const [id, ms] of rennen) rSec.appendChild(stHbar(evTitel(id), ms, rMax, stDauer(ms)));
+  grid2.appendChild(rSec);
+  paper.appendChild(grid2);
+
+  const grid3 = el("div", { class: "st-grid" });
+  // Klicks
+  const klicks = Object.entries(R.klick).sort((a, b) => b[1] - a[1]), kl = el("table", { class: "st-tbl" });
+  for (const [w, n] of klicks) kl.appendChild(el("tr", null, el("td", null, ST_KLICK[w] || w), el("td", null, n + "×")));
+  grid3.appendChild(el("div", { class: "st-sec" }, el("h3", null, "Was wird angetippt?"), klicks.length ? kl : el("div", { class: "st-note" }, "Keine Klicks erfasst.")));
+  // Kernaussagen
+  const keys = el("ul", { class: "st-keys" });
+  const li = (b, t) => keys.appendChild(el("li", null, el("b", null, b), " " + t));
+  li("Reichweite:", nDev + " Geräte, " + R.aufrufe + " Aufrufe" + (mehrfach ? ", " + mehrfach + " Geräte kamen mehrmals zurück." : "."));
+  li("Handy zuerst:", stPct(R.aufrufeMob, R.aufrufe) + " % der Aufrufe kamen vom Handy.");
+  const spitze = tage.flatMap(t => R.stunden[t].map((n, h) => ({ t, h, n }))).sort((a, b) => b.n - a.n)[0];
+  if (spitze && spitze.n) li("Spitze:", stTagLabel(spitze.t) + ", " + String(spitze.h).padStart(2, "0") + "–" + String(spitze.h + 1).padStart(2, "0") + " Uhr mit " + spitze.n + " Aufrufen.");
+  if (karten.length) li("Fokus:", (ST_KARTE[karten[0][0]] || karten[0][0]) + " – " + stPct(karten[0][1], kSum) + " % der Sichtzeit.");
+  const fr = R.ansicht.frauen || 0, ma = R.ansicht.maenner || 0;
+  if (fr + ma) li("Frauen / Männer:", stPct(fr, fr + ma) + " % / " + stPct(ma, fr + ma) + " % der Sichtzeit.");
+  li("Stabil:", R.fehler.length ? R.fehler.length + " technische Fehler: " + [...new Set(R.fehler)].slice(0, 3).join(" · ") : "keine technischen Fehler.");
+  grid3.appendChild(el("div", { class: "st-sec" }, el("h3", null, "Kernaussagen"), keys));
+  paper.appendChild(grid3);
+
+  paper.appendChild(el("div", { class: "st-foot" }, "Anonyme Nutzungsstatistik der Coach-Ansicht · nur Coach-Geräte, ohne Command Center und Testgeräte · Zeiten MEZ · Stand " + new Date().toLocaleString("de-CH", { timeZone: ST_ZONE, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })));
+  return paper;
+}
+
 /* ---------- Wiring ---------- */
 $("#loginForm").addEventListener("submit", handleLogin);
 $("#peekBtn").addEventListener("click", () => {
@@ -1351,7 +1724,7 @@ $("#peekBtn").addEventListener("click", () => {
 $("#eventSelect").addEventListener("change", e => { ui.currentEventId = e.target.value; ui.runId = "q1"; render(); });
 $("#genderSeg").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
-  ui.gender = b.dataset.g; render();
+  ui.gender = b.dataset.g; NUTZUNG.klick("ansicht-" + ui.gender); render();
 });
 $("#menuBtn").addEventListener("click", openMenu);
 
